@@ -9,7 +9,7 @@ worse than a missing one.
 git clone https://github.com/Ashiii27/tokenizer.git
 cd tokenizer
 npm install          # jsdom, for the DOM test — it is the only dependency
-npm test             # 55 tests
+npm test             # 65 tests
 python3 -m http.server 8080
 ```
 

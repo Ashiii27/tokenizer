@@ -9,6 +9,7 @@
 import { $, setStatus, showError, describeError } from './lib/dom.js';
 import { ModelClient } from './lib/client.js';
 import { initTheme } from './lib/theme.js';
+import { initReveals, initCounters, initRailProgress } from './lib/motion.js';
 import { readUrlState, readStoredState } from './lib/urlstate.js';
 import { SAMPLES, TOKENIZERS, EMBEDDER, DEFAULT_CORPUS } from './lib/models.js';
 
@@ -29,6 +30,9 @@ let corpusPanel = null;
 
 initTheme($('#theme-toggle'));
 initSectionNav();
+initReveals();
+initCounters();
+initRailProgress();
 
 try {
   client = new ModelClient({
@@ -145,7 +149,7 @@ function updateDeviceBadge(device) {
 /* ------------------------------------------------------------------------ */
 
 function initSectionNav() {
-  const links = [...document.querySelectorAll('.section-nav a')];
+  const links = [...document.querySelectorAll('.rail-list a')];
   if (!links.length || !('IntersectionObserver' in window)) return;
 
   const byId = new Map(links.map((link) => [link.getAttribute('href').slice(1), link]));

@@ -143,10 +143,10 @@ export function initCorpusPanel({ client, ensureEmbedder, initial }) {
               )}\n${truncate(texts[col], 40)}`,
               'aria-label': `Similarity between text ${row + 1} and ${col + 1}: ${formatScore(score, 3)}`,
               style: {
-                background: `color-mix(in srgb, var(--accent) ${Math.round(
+                background: `color-mix(in srgb, var(--signal) ${Math.round(
                   8 + strength * 88,
-                )}%, var(--surface-2))`,
-                outlineColor: row === col ? 'var(--border-strong)' : undefined,
+                )}%, var(--paper-raised))`,
+                outlineColor: row === col ? 'var(--rule-2)' : undefined,
               },
               dataset: { row: String(row), col: String(col) },
               onclick: () => select(row),
@@ -189,7 +189,7 @@ export function initCorpusPanel({ client, ensureEmbedder, initial }) {
       const row = Number(cell.dataset.row);
       const col = Number(cell.dataset.col);
       cell.style.outlineColor =
-        row === index || col === index ? 'var(--accent)' : 'transparent';
+        row === index || col === index ? 'var(--signal)' : 'transparent';
     }
 
     const best = neighbours[0];

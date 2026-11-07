@@ -58,7 +58,7 @@ export function initTokenizePanel({ client, model, getInitialText, onTextChange 
   })();
 
   /* ---- tokenize -------------------------------------------------------- */
-  async function run() {
+  async function run({ animate = false } = {}) {
     const text = input.value;
     hideError(error);
 
@@ -89,14 +89,14 @@ export function initTokenizePanel({ client, model, getInitialText, onTextChange 
       const result = await withBusy(button, 'Tokenizing…', () => client.tokenize(model, text));
       if (seq !== requestSeq) return;
       last = result;
-      render(result, text);
+      render(result, text, { animate });
       announce(`Tokenized into ${formatCount(result.ids.length)} tokens.`);
     } catch (err) {
       showError(error, `Tokenization failed: ${describeError(err)}`);
     }
   }
 
-  function render(result, text) {
+  function render(result, text, { animate = false } = {}) {
     const stats = tokenStats({ text, ids: result.ids, texts: result.texts });
     const usage = contextUsage(result.ids.length, model.context);
 
@@ -115,6 +115,7 @@ export function initTokenizePanel({ client, model, getInitialText, onTextChange 
     const chips = renderChips({
       ids: result.ids,
       texts: result.texts,
+      animate,
       onSelect: (index) => {
         selected = index;
         showDetail(result, index);
@@ -128,7 +129,7 @@ export function initTokenizePanel({ client, model, getInitialText, onTextChange 
     roundTrip.textContent = matches
       ? `✓ chips rejoin to exactly ${formatCount([...rebuilt].length)} characters`
       : '⚠ chips do not rejoin cleanly';
-    roundTrip.style.color = matches ? 'var(--ok)' : 'var(--bad)';
+    roundTrip.style.color = matches ? 'var(--pos)' : 'var(--neg)';
 
     $('#tok-hint').textContent = result.truncated
       ? `Showing the first ${formatCount(result.renderLimit)} of ${formatCount(
@@ -186,7 +187,7 @@ export function initTokenizePanel({ client, model, getInitialText, onTextChange 
   }
 
   /* ---- wiring ---------------------------------------------------------- */
-  button.addEventListener('click', run);
+  button.addEventListener('click', () => run({ animate: true }));
 
   input.addEventListener('keydown', (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
@@ -206,7 +207,7 @@ export function initTokenizePanel({ client, model, getInitialText, onTextChange 
   for (const sample of document.querySelectorAll('[data-sample]')) {
     sample.addEventListener('click', () => {
       input.value = SAMPLES[sample.dataset.sample] ?? '';
-      run();
+      run({ animate: true });
     });
   }
 

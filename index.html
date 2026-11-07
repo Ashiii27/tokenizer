@@ -1,23 +1,22 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>How LLMs read text — tokenization &amp; embeddings, live in your browser</title>
     <meta
       name="description"
-      content="An interactive explainer: run real tokenizers (GPT-2, Llama 3, BERT) and a sentence-embedding model entirely in your browser. See how text becomes tokens, how meaning becomes vectors, and why multilingual text costs more."
+      content="A field guide to what a language model actually reads. Run real tokenizers (GPT-2, Llama 3, Qwen, BERT, T5) and a sentence-embedding model entirely in your browser. Text becomes tokens, tokens become integers, integers become vectors."
     />
-    <meta name="theme-color" content="#080b11" />
-    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#f1ece1" />
+    <meta name="color-scheme" content="light dark" />
     <link rel="canonical" href="https://ashiii27.github.io/tokenizer/" />
 
-    <!-- Open Graph / social -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="How LLMs read text — tokenization &amp; embeddings, live" />
     <meta
       property="og:description"
-      content="Real tokenizers and a real embedding model, running entirely in your browser. No server, no setup, no data leaving your machine."
+      content="Text → tokens → integers → vectors, with real models running in your browser. No server, no setup, nothing uploaded."
     />
     <meta property="og:url" content="https://ashiii27.github.io/tokenizer/" />
     <meta property="og:image" content="https://ashiii27.github.io/tokenizer/assets/og.png" />
@@ -27,17 +26,24 @@
     <meta name="twitter:title" content="How LLMs read text — tokenization &amp; embeddings, live" />
     <meta
       name="twitter:description"
-      content="Real tokenizers and a real embedding model, running entirely in your browser."
+      content="Text → tokens → integers → vectors, with real models running in your browser."
     />
     <meta name="twitter:image" content="https://ashiii27.github.io/tokenizer/assets/og.png" />
 
     <link
       rel="icon"
-      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧩</text></svg>"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='14' fill='%23f1ece1'/><text x='50' y='72' font-family='Georgia,serif' font-size='64' font-weight='700' text-anchor='middle' fill='%23cf3f16'>T</text></svg>"
     />
 
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="preconnect" href="https://huggingface.co" crossorigin />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces-latin-var.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
 
     <link rel="stylesheet" href="styles/tokens.css" />
     <link rel="stylesheet" href="styles/base.css" />
@@ -45,409 +51,504 @@
   </head>
 
   <body>
+    <div class="grain" aria-hidden="true"></div>
     <a class="skip-link" href="#main">Skip to content</a>
 
-    <div class="wrap">
-      <header class="site-header">
-        <div class="header-top">
-          <div>
-            <h1>How LLMs read text</h1>
-            <p class="lede">
-              A language model never sees your words. It sees <strong>token IDs</strong>, and then
-              <strong>vectors</strong>. This page runs two real transformer models — a tokenizer and a
-              sentence-embedding model — <strong>entirely in your browser</strong>. Nothing you type
-              leaves your machine.
-            </p>
-            <div class="badges">
-              <span class="badge is-live"><span class="dot"></span>runs locally · no server</span>
-              <span class="badge" id="badge-library"
-                ><span class="dot"></span><span id="badge-library-text">Transformers.js</span></span
-              >
-              <span class="badge" id="badge-device" hidden
-                ><span class="dot"></span><span id="badge-device-text">WASM</span></span
-              >
-            </div>
-          </div>
+    <!-- ==================================================================
+         MASTHEAD / HERO
+         ================================================================== -->
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="wordmark" href="#top">
+          <span class="wordmark-mark" aria-hidden="true">◆</span>
+          <span class="wordmark-text">Tokenizer</span>
+          <span class="wordmark-note">a field guide</span>
+        </a>
+
+        <div class="masthead-tools">
+          <span class="tag" id="badge-library"><span id="badge-library-text">Transformers.js</span></span>
+          <span class="tag" id="badge-device" hidden><span id="badge-device-text">WASM</span></span>
           <button id="theme-toggle" class="btn-icon" type="button" aria-label="Switch theme"></button>
         </div>
-      </header>
+      </div>
+    </header>
 
-      <nav class="section-nav" aria-label="Sections">
-        <ul>
-          <li><a href="#tokens">1 · Tokens</a></li>
-          <li><a href="#compare">2 · Tokenizers</a></li>
-          <li><a href="#languages">3 · Languages</a></li>
-          <li><a href="#embeddings">4 · Embeddings</a></li>
-          <li><a href="#corpus">5 · Corpus</a></li>
-          <li><a href="#map">6 · Meaning map</a></li>
-        </ul>
+    <div class="masthead" id="top">
+      <div class="hero">
+        <p class="kicker">
+          <span class="kicker-index">§ 00</span>
+          <span class="kicker-line" aria-hidden="true"></span>
+          <span>What a language model actually reads</span>
+        </p>
+
+        <h1 class="hero-title">
+          <span class="line"><span class="word" style="--w: 0">How</span> <span class="word" style="--w: 1">LLMs</span></span>
+          <span class="line"><span class="word" style="--w: 2">read</span> <span class="word is-signal" style="--w: 3">text</span></span>
+        </h1>
+
+        <div class="hero-body">
+          <p class="lede">
+            A language model never sees your words. A tokenizer turns them into integers, and an
+            embedding model turns them into vectors that carry meaning. Both run
+            <em>in this tab</em> — no server, no setup, nothing you type leaves your machine.
+          </p>
+
+          <ul class="hero-facts">
+            <li class="reveal" style="--d: 0">
+              <span class="fact-num" data-count="50257">0</span>
+              <span class="fact-label">entries in GPT-2's<br />vocabulary</span>
+            </li>
+            <li class="reveal" style="--d: 1">
+              <span class="fact-num" data-count="384">0</span>
+              <span class="fact-label">dimensions per<br />sentence vector</span>
+            </li>
+            <li class="reveal" style="--d: 2">
+              <span class="fact-num" data-count="7">0</span>
+              <span class="fact-label">languages, measured<br />against English</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- conceptual illustration; real numbers live in §01 -->
+        <figure class="pipeline">
+          <figcaption class="pipeline-caption">
+            <span>Fig. 1</span> — one sentence, three transformations
+          </figcaption>
+
+          <div class="pipeline-stages">
+            <div class="stage" style="--s: 0">
+              <p class="stage-label">text</p>
+              <p class="stage-text">“tokens are numbers”</p>
+            </div>
+
+            <div class="stage-arrow" aria-hidden="true">→</div>
+
+            <div class="stage" style="--s: 1">
+              <p class="stage-label">tokens</p>
+              <div class="stage-chips">
+                <span class="demo-chip">token</span>
+                <span class="demo-chip">s</span>
+                <span class="demo-chip"><span class="ws-dot">·</span>are</span>
+                <span class="demo-chip"><span class="ws-dot">·</span>numbers</span>
+              </div>
+              <p class="stage-note">“tokens” breaks into “token” + “s”</p>
+            </div>
+
+            <div class="stage-arrow" aria-hidden="true">→</div>
+
+            <div class="stage" style="--s: 2">
+              <p class="stage-label">ids</p>
+              <div class="stage-ids">
+                <span></span><span></span><span></span><span></span>
+              </div>
+              <p class="stage-note">one integer per token</p>
+            </div>
+
+            <div class="stage-arrow" aria-hidden="true">→</div>
+
+            <div class="stage" style="--s: 3">
+              <p class="stage-label">vector</p>
+              <div class="stage-vector" aria-hidden="true">
+                <i style="--v: 3"></i><i style="--v: 7"></i><i style="--v: 2"></i><i style="--v: 9"></i>
+                <i style="--v: 4"></i><i style="--v: 8"></i><i style="--v: 1"></i><i style="--v: 6"></i>
+                <i style="--v: 9"></i><i style="--v: 3"></i><i style="--v: 7"></i><i style="--v: 2"></i>
+                <i style="--v: 5"></i><i style="--v: 8"></i><i style="--v: 4"></i><i style="--v: 6"></i>
+              </div>
+              <p class="stage-note">384 numbers, meaning included</p>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </div>
+
+    <!-- ==================================================================
+         MARQUEE
+         ================================================================== -->
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee-track">
+        <span>text</span><b>◆</b><span>tokens</span><b>◆</b><span>integers</span><b>◆</b>
+        <span>vectors</span><b>◆</b><span>cosine</span><b>◆</b><span>meaning</span><b>◆</b>
+        <span>text</span><b>◆</b><span>tokens</span><b>◆</b><span>integers</span><b>◆</b>
+        <span>vectors</span><b>◆</b><span>cosine</span><b>◆</b><span>meaning</span><b>◆</b>
+        <span>text</span><b>◆</b><span>tokens</span><b>◆</b><span>integers</span><b>◆</b>
+        <span>vectors</span><b>◆</b><span>cosine</span><b>◆</b><span>meaning</span><b>◆</b>
+      </div>
+    </div>
+
+    <!-- ==================================================================
+         LAYOUT: rail + panels
+         ================================================================== -->
+    <div class="layout">
+      <nav class="rail" aria-label="Sections">
+        <ol class="rail-list">
+          <li><a href="#tokens"><span class="rail-num">01</span><span class="rail-label">Tokens</span></a></li>
+          <li><a href="#compare"><span class="rail-num">02</span><span class="rail-label">Tokenizers</span></a></li>
+          <li><a href="#languages"><span class="rail-num">03</span><span class="rail-label">Languages</span></a></li>
+          <li><a href="#embeddings"><span class="rail-num">04</span><span class="rail-label">Vectors</span></a></li>
+          <li><a href="#corpus"><span class="rail-num">05</span><span class="rail-label">Corpus</span></a></li>
+          <li><a href="#map"><span class="rail-num">06</span><span class="rail-label">Map</span></a></li>
+        </ol>
+        <div class="rail-progress" aria-hidden="true"><span id="rail-fill"></span></div>
       </nav>
 
       <main id="main">
-        <!-- ================================================================
-             1 — TOKENIZATION
-             ================================================================ -->
+        <!-- ==============================================================
+             01 — TOKENIZATION
+             ============================================================== -->
         <section class="panel" id="tokens" aria-labelledby="tokens-h">
-          <div class="panel-head">
-            <h2 id="tokens-h"><span class="step" aria-hidden="true">1</span> Tokens and token IDs</h2>
-            <span class="model-tag" id="tok-model-tag">Xenova/gpt2</span>
-          </div>
-          <p class="panel-sub">
-            A tokenizer splits text into pieces — whole words, word fragments, single bytes — and maps
-            each piece to an ID from a fixed vocabulary. Those IDs are the only thing the network ever
-            reads. Try Hindi, Chinese or an emoji: watch how one character splits into several tokens.
-          </p>
-
-          <p class="status is-loading" id="tok-status" aria-live="polite">
-            Loading the GPT-2 tokenizer…
-          </p>
-          <div class="error" id="tok-error" role="alert" hidden></div>
-
-          <label for="tok-input">Text to tokenize <span class="label-hint">⌘/Ctrl + Enter</span></label>
-          <textarea id="tok-input" rows="3" spellcheck="false"
-            placeholder="Type or paste any text…"></textarea>
-
-          <div class="btn-row">
-            <button id="tok-btn" type="button" disabled>Tokenize</button>
-            <div class="spacer"></div>
-            <span class="subtle">Try:</span>
-            <button class="btn-ghost btn-small" type="button" data-sample="english">English</button>
-            <button class="btn-ghost btn-small" type="button" data-sample="multilingual">
-              Hindi + emoji
-            </button>
-            <button class="btn-ghost btn-small" type="button" data-sample="code">Code</button>
-            <button class="btn-ghost btn-small" type="button" data-sample="numbers">Numbers</button>
-          </div>
-
-          <div class="results" id="tok-results" hidden>
-            <dl class="stats" id="tok-stats"></dl>
-
-            <div class="result-head">
-              <h3>Tokens</h3>
-              <span class="pill"><span id="tok-count">0</span> tokens</span>
-            </div>
-            <p class="hint" id="tok-hint">
-              Every chip is one token. Click or arrow through them to inspect one; whitespace is shown
-              as <code>·</code> for a space and <code>⏎</code> for a newline, because a bare space
-              really is its own token.
+          <header class="panel-head reveal">
+            <p class="panel-kicker">§ 01 — the vocabulary</p>
+            <h2 id="tokens-h">Tokens &amp; IDs <span class="model-tag" id="tok-model-tag">Xenova/gpt2</span></h2>
+            <p class="panel-sub">
+              A tokenizer cuts text into pieces — whole words, word fragments, single bytes — and maps
+              each piece to an ID from a fixed vocabulary. Those IDs are the only thing the network
+              ever reads. Try Hindi, Chinese or an emoji and watch one character become several tokens.
             </p>
-            <div id="tok-chips"></div>
-            <div class="legend">
-              <span><span class="swatch frag"></span> byte fragment — completed by the next token</span>
-              <span id="tok-roundtrip" class="subtle"></span>
+          </header>
+
+          <div class="panel-body">
+            <p class="status is-loading" id="tok-status" aria-live="polite">Loading the GPT-2 tokenizer…</p>
+            <div class="error" id="tok-error" role="alert" hidden></div>
+
+            <div class="field">
+              <label for="tok-input">Text to tokenize <span class="label-hint">⌘/Ctrl + ↵</span></label>
+              <textarea id="tok-input" rows="3" spellcheck="false" placeholder="Type or paste any text…"></textarea>
             </div>
 
-            <div class="detail" id="tok-detail" aria-live="polite">
-              Select a token above to see its ID, bytes and position.
+            <div class="btn-row">
+              <button id="tok-btn" type="button" disabled>Tokenize</button>
+              <span class="btn-row-label">samples</span>
+              <button class="btn-ghost btn-small" type="button" data-sample="english">English</button>
+              <button class="btn-ghost btn-small" type="button" data-sample="multilingual">Hindi + emoji</button>
+              <button class="btn-ghost btn-small" type="button" data-sample="code">Code</button>
+              <button class="btn-ghost btn-small" type="button" data-sample="numbers">Numbers</button>
             </div>
 
-            <div class="context" id="tok-context">
-              <div class="context-track">
-                <div class="context-fill" id="tok-context-fill"></div>
+            <div class="results plate" id="tok-results" hidden>
+              <dl class="stats" id="tok-stats"></dl>
+
+              <div class="result-head">
+                <h3>Tokens</h3>
+                <span class="pill"><span id="tok-count">0</span> tokens</span>
               </div>
-              <div class="context-legend">
-                <span id="tok-context-text">0 / 1,024 tokens</span>
-                <span id="tok-context-note">GPT-2's context window</span>
+              <p class="hint" id="tok-hint">
+                Each chip is one token. Click or arrow through them to inspect one. Whitespace is
+                drawn as <code>·</code> for a space and <code>⏎</code> for a newline — a bare space
+                really is its own token.
+              </p>
+              <div id="tok-chips"></div>
+              <div class="legend">
+                <span><span class="swatch frag"></span> byte fragment, completed by the next token</span>
+                <span id="tok-roundtrip" class="subtle"></span>
               </div>
-            </div>
 
-            <div class="result-head">
-              <h3>Token IDs</h3>
-              <button class="btn-ghost btn-small" type="button" id="tok-copy">Copy IDs</button>
+              <div class="detail" id="tok-detail" aria-live="polite">
+                Select a token above to see its ID, bytes and position.
+              </div>
+
+              <div class="context" id="tok-context">
+                <div class="context-track"><div class="context-fill" id="tok-context-fill"></div></div>
+                <div class="context-legend">
+                  <span id="tok-context-text">0 / 1,024 tokens</span>
+                  <span id="tok-context-note">GPT-2's context window</span>
+                </div>
+              </div>
+
+              <div class="result-head">
+                <h3>Token IDs</h3>
+                <button class="btn-ghost btn-small" type="button" id="tok-copy">Copy IDs</button>
+              </div>
+              <p class="hint">
+                This array is what enters the model. Concatenate the chips' text and you get your
+                input back — exactly, in any script.
+              </p>
+              <pre class="ids" id="tok-ids"></pre>
             </div>
-            <p class="hint">
-              This array is what actually enters the model. Concatenate the chips' text and you get
-              your input back — exactly, in any script.
-            </p>
-            <pre class="ids" id="tok-ids"></pre>
           </div>
         </section>
 
-        <!-- ================================================================
-             2 — TOKENIZER COMPARISON
-             ================================================================ -->
+        <!-- ==============================================================
+             02 — TOKENIZER COMPARISON
+             ============================================================== -->
         <section class="panel" id="compare" aria-labelledby="compare-h">
-          <div class="panel-head">
-            <h2 id="compare-h">
-              <span class="step" aria-hidden="true">2</span> Tokenizers disagree
-            </h2>
-            <span class="model-tag">5 vocabularies</span>
-          </div>
-          <p class="panel-sub">
-            There is no universal tokenizer. Each model family learns its own vocabulary, and the same
-            sentence can cost very different numbers of tokens depending on which one you use. That
-            number is not cosmetic — it is your context budget, your latency and your API bill.
-          </p>
-
-          <label for="cmp-input">Text to compare <span class="label-hint">⌘/Ctrl + Enter</span></label>
-          <textarea id="cmp-input" rows="3" spellcheck="false"></textarea>
-
-          <div class="checks" id="cmp-models" role="group" aria-label="Tokenizers to compare"></div>
-
-          <div class="btn-row">
-            <button id="cmp-btn" type="button" disabled>Compare tokenizers</button>
-            <button id="cmp-load" class="btn-ghost" type="button">
-              Load selected tokenizers
-            </button>
-          </div>
-
-          <p class="status" id="cmp-status" aria-live="polite"></p>
-          <div class="error" id="cmp-error" role="alert" hidden></div>
-
-          <div class="results" id="cmp-results" hidden>
-            <p class="hint" id="cmp-summary"></p>
-            <div class="compare-grid" id="cmp-grid"></div>
-            <div class="legend">
-              <span><span class="swatch special"></span> special token the tokenizer inserts
-                (<code>[CLS]</code>, <code>[SEP]</code>, <code>&lt;s&gt;</code>) — it isn't in your
-                text</span>
-              <span><span class="swatch frag"></span> byte fragment (multi-byte character split
-                across tokens)</span>
-            </div>
-          </div>
-        </section>
-
-        <!-- ================================================================
-             3 — LANGUAGES & COST
-             ================================================================ -->
-        <section class="panel" id="languages" aria-labelledby="languages-h">
-          <div class="panel-head">
-            <h2 id="languages-h">
-              <span class="step" aria-hidden="true">3</span> One meaning, seven languages
-            </h2>
-            <span class="model-tag" id="lang-model-tag">GPT-2</span>
-          </div>
-          <p class="panel-sub">
-            The same sentence, translated. Tokenizers trained mostly on English spend far more tokens
-            on other scripts — Devanagari, Bengali, Tamil and Han characters are 3 bytes each and often
-            get shredded into several tokens per character. Same meaning, more money.
-          </p>
-
-          <div class="btn-row">
-            <label for="lang-select" class="sr-only">Tokenizer</label>
-            <select id="lang-select" style="width: auto; min-width: 190px"></select>
-            <button id="lang-btn" type="button" disabled>Measure</button>
-          </div>
-
-          <p class="status" id="lang-status" aria-live="polite"></p>
-          <div class="error" id="lang-error" role="alert" hidden></div>
-
-          <div class="results" id="lang-results" hidden>
-            <div class="table-wrap">
-              <table>
-                <caption class="sr-only">
-                  Token counts for the same sentence across languages
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Language</th>
-                    <th scope="col">Text</th>
-                    <th scope="col" class="num">Tokens</th>
-                    <th scope="col" class="num">Chars</th>
-                    <th scope="col" class="num">Chars / token</th>
-                    <th scope="col">Cost vs English</th>
-                  </tr>
-                </thead>
-                <tbody id="lang-body"></tbody>
-              </table>
-            </div>
-            <p class="hint" id="lang-note"></p>
-          </div>
-        </section>
-
-        <!-- ================================================================
-             4 — EMBEDDINGS
-             ================================================================ -->
-        <section class="panel" id="embeddings" aria-labelledby="embeddings-h">
-          <div class="panel-head">
-            <h2 id="embeddings-h">
-              <span class="step" aria-hidden="true">4</span> Meaning as a vector
-            </h2>
-            <span class="model-tag" id="emb-model-tag">all-MiniLM-L6-v2 · 384d</span>
-          </div>
-          <p class="panel-sub">
-            An embedding model squeezes a whole sentence into 384 numbers. Similar meanings end up with
-            similar numbers, so the angle between two vectors — <strong>cosine similarity</strong> —
-            becomes a measure of how close in meaning two texts are.
-          </p>
-
-          <div class="progress" id="emb-progress">
-            <div class="bar"><div class="bar-fill" id="emb-bar"></div></div>
-            <div class="progress-line">
-              <span id="emb-file">not loaded yet</span>
-              <span id="emb-overall">0%</span>
-            </div>
-          </div>
-          <p class="status" id="emb-status" aria-live="polite">
-            The embedding model (~23 MB) loads when you reach this section — or press the button.
-          </p>
-          <div class="error" id="emb-error" role="alert" hidden></div>
-
-          <div class="btn-row">
-            <button id="emb-load" class="btn-ghost" type="button">Load embedding model</button>
-          </div>
-
-          <div class="field-row">
-            <div>
-              <label for="emb-a">Text A</label>
-              <textarea id="emb-a" rows="2" spellcheck="false"></textarea>
-            </div>
-            <div>
-              <label for="emb-b">Text B</label>
-              <textarea id="emb-b" rows="2" spellcheck="false"></textarea>
-            </div>
-          </div>
-
-          <div class="btn-row">
-            <button id="emb-btn" type="button" disabled>Compare</button>
-            <div class="spacer"></div>
-            <span class="subtle">Tricky pairs:</span>
-            <span id="emb-pairs"></span>
-          </div>
-
-          <div class="results" id="emb-results" hidden>
-            <div class="result-head">
-              <h3>Cosine similarity</h3>
-              <span class="pill" id="emb-tokens-pill"></span>
-            </div>
-            <div class="sim-row">
-              <span class="score" id="sim-score">0.0000</span>
-              <span class="sim-label" id="sim-label"></span>
-            </div>
-            <div class="meter"><div class="meter-fill" id="sim-fill"></div></div>
-            <div class="meter-ticks">
-              <span>0 · unrelated</span><span>0.5</span><span>1 · identical</span>
-            </div>
-            <p class="math-line" id="sim-math"></p>
-            <p class="hint" id="sim-hint"></p>
-
-            <div class="result-head">
-              <h3>Which dimensions drive that score</h3>
-            </div>
-            <p class="hint">
-              The dot product is a sum of <code>A<sub>i</sub> × B<sub>i</sub></code> over all 384
-              dimensions. These are the twelve that contribute most — positive bars push the texts
-              together, negative bars pull them apart.
+          <header class="panel-head reveal">
+            <p class="panel-kicker">§ 02 — five vocabularies</p>
+            <h2 id="compare-h">Tokenizers disagree</h2>
+            <p class="panel-sub">
+              There is no universal tokenizer. Each model family learns its own vocabulary, and the
+              same sentence costs a different number of tokens depending on which one you use. That
+              number is not cosmetic — it is your context budget, your latency and your bill.
             </p>
-            <div class="legend">
-              <span><span class="swatch pos"></span> positive contribution</span>
-              <span><span class="swatch neg"></span> negative contribution</span>
-            </div>
-            <div class="dim-chart" id="emb-dims"></div>
+          </header>
 
-            <div class="result-head">
-              <h3>Text A's embedding</h3>
-              <span class="pill">first 64 of 384</span>
+          <div class="panel-body">
+            <div class="field">
+              <label for="cmp-input">Text to compare <span class="label-hint">⌘/Ctrl + ↵</span></label>
+              <textarea id="cmp-input" rows="3" spellcheck="false"></textarea>
             </div>
-            <p class="hint" id="emb-a-hint"></p>
-            <div class="dim-chart" id="emb-vec-a"></div>
+
+            <div class="checks" id="cmp-models" role="group" aria-label="Tokenizers to compare"></div>
+
+            <div class="btn-row">
+              <button id="cmp-btn" type="button" disabled>Compare</button>
+              <button id="cmp-load" class="btn-ghost" type="button">Load selected tokenizers</button>
+            </div>
+
+            <p class="status" id="cmp-status" aria-live="polite"></p>
+            <div class="error" id="cmp-error" role="alert" hidden></div>
+
+            <div class="results plate" id="cmp-results" hidden>
+              <p class="hint" id="cmp-summary"></p>
+              <div class="compare-grid" id="cmp-grid"></div>
+              <div class="legend">
+                <span><span class="swatch special"></span> special token the tokenizer inserts
+                  (<code>[CLS]</code>, <code>[SEP]</code>, <code>&lt;s&gt;</code>) — not in your text</span>
+                <span><span class="swatch frag"></span> byte fragment</span>
+              </div>
+            </div>
           </div>
         </section>
 
-        <!-- ================================================================
-             5 — CORPUS
-             ================================================================ -->
+        <!-- ==============================================================
+             03 — LANGUAGES
+             ============================================================== -->
+        <section class="panel" id="languages" aria-labelledby="languages-h">
+          <header class="panel-head reveal">
+            <p class="panel-kicker">§ 03 — the cost of language</p>
+            <h2 id="languages-h">
+              One meaning,<br />seven languages <span class="model-tag" id="lang-model-tag">GPT-2</span>
+            </h2>
+            <p class="panel-sub">
+              The same sentence, translated. Tokenizers trained mostly on English spend far more
+              tokens on other scripts — Devanagari, Bengali, Tamil and Han characters are three bytes
+              each and often get shredded into several tokens per character. Same meaning, more money.
+            </p>
+          </header>
+
+          <div class="panel-body">
+            <div class="btn-row">
+              <label for="lang-select" class="sr-only">Tokenizer</label>
+              <select id="lang-select"></select>
+              <button id="lang-btn" type="button" disabled>Measure</button>
+            </div>
+
+            <p class="status" id="lang-status" aria-live="polite"></p>
+            <div class="error" id="lang-error" role="alert" hidden></div>
+
+            <div class="results plate" id="lang-results" hidden>
+              <div class="table-wrap">
+                <table>
+                  <caption class="sr-only">Token counts for the same sentence across languages</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Language</th>
+                      <th scope="col">Text</th>
+                      <th scope="col" class="num">Tokens</th>
+                      <th scope="col" class="num">Chars</th>
+                      <th scope="col" class="num">Chars / token</th>
+                      <th scope="col">Cost vs English</th>
+                    </tr>
+                  </thead>
+                  <tbody id="lang-body"></tbody>
+                </table>
+              </div>
+              <p class="hint" id="lang-note"></p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================================
+             04 — EMBEDDINGS
+             ============================================================== -->
+        <section class="panel" id="embeddings" aria-labelledby="embeddings-h">
+          <header class="panel-head reveal">
+            <p class="panel-kicker">§ 04 — meaning as numbers</p>
+            <h2 id="embeddings-h">
+              Vectors &amp; cosine <span class="model-tag" id="emb-model-tag">all-MiniLM-L6-v2 · 384d</span>
+            </h2>
+            <p class="panel-sub">
+              An embedding model squeezes a whole sentence into 384 numbers. Similar meanings produce
+              similar numbers, so the angle between two vectors — <strong>cosine similarity</strong> —
+              becomes a measure of how close in meaning two texts are.
+            </p>
+          </header>
+
+          <div class="panel-body">
+            <div class="progress" id="emb-progress">
+              <div class="bar"><div class="bar-fill" id="emb-bar"></div></div>
+              <div class="progress-line">
+                <span id="emb-file">not loaded yet</span>
+                <span id="emb-overall">0%</span>
+              </div>
+            </div>
+            <p class="status" id="emb-status" aria-live="polite">
+              The embedding model (~23 MB) loads when you reach this section — or press the button.
+            </p>
+            <div class="error" id="emb-error" role="alert" hidden></div>
+
+            <div class="btn-row">
+              <button id="emb-load" class="btn-ghost" type="button">Load embedding model</button>
+            </div>
+
+            <div class="field-pair">
+              <div class="field">
+                <label for="emb-a">Text A</label>
+                <textarea id="emb-a" rows="2" spellcheck="false"></textarea>
+              </div>
+              <div class="field">
+                <label for="emb-b">Text B</label>
+                <textarea id="emb-b" rows="2" spellcheck="false"></textarea>
+              </div>
+            </div>
+
+            <div class="btn-row">
+              <button id="emb-btn" type="button" disabled>Compare</button>
+              <span class="btn-row-label">tricky pairs</span>
+              <span id="emb-pairs" class="btn-row-inline"></span>
+            </div>
+
+            <div class="results plate" id="emb-results" hidden>
+              <div class="result-head">
+                <h3>Cosine similarity</h3>
+                <span class="pill" id="emb-tokens-pill"></span>
+              </div>
+              <div class="sim-row">
+                <span class="score" id="sim-score">0.0000</span>
+                <span class="sim-label" id="sim-label"></span>
+              </div>
+              <div class="meter"><div class="meter-fill" id="sim-fill"></div></div>
+              <div class="meter-ticks"><span>0 · unrelated</span><span>0.5</span><span>1 · identical</span></div>
+              <p class="math-line" id="sim-math"></p>
+              <p class="hint" id="sim-hint"></p>
+
+              <div class="result-head"><h3>What drives that score</h3></div>
+              <p class="hint">
+                The dot product is a sum of <code>A<sub>i</sub> × B<sub>i</sub></code> across all 384
+                dimensions. These are the twelve that contribute most — positive bars pull the texts
+                together, negative bars push them apart.
+              </p>
+              <div class="legend">
+                <span><span class="swatch pos"></span> positive contribution</span>
+                <span><span class="swatch neg"></span> negative contribution</span>
+              </div>
+              <div class="dim-chart" id="emb-dims"></div>
+
+              <div class="result-head">
+                <h3>Text A's embedding</h3>
+                <span class="pill">first 64 of 384</span>
+              </div>
+              <p class="hint" id="emb-a-hint"></p>
+              <div class="dim-chart" id="emb-vec-a"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================================
+             05 — CORPUS
+             ============================================================== -->
         <section class="panel" id="corpus" aria-labelledby="corpus-h">
-          <div class="panel-head">
-            <h2 id="corpus-h">
-              <span class="step" aria-hidden="true">5</span> A whole corpus at once
-            </h2>
-            <span class="model-tag" id="corpus-tag">cosine matrix</span>
-          </div>
-          <p class="panel-sub">
-            Two texts is a demo; fifty is a search index. Paste one sentence per line to embed them
-            all, then look at the similarity matrix and every item's nearest neighbours. This is the
-            machinery behind semantic search and RAG — retrieval is just <em>rank by cosine</em>.
-          </p>
+          <header class="panel-head reveal">
+            <p class="panel-kicker">§ 05 — retrieval</p>
+            <h2 id="corpus-h">A corpus at once <span class="model-tag" id="corpus-tag">cosine matrix</span></h2>
+            <p class="panel-sub">
+              Two texts is a demo; fifty is a search index. Paste one sentence per line to embed them
+              all, then read the similarity matrix and every item's nearest neighbours. This is the
+              machinery behind semantic search and RAG — retrieval is just <em>rank by cosine</em>.
+            </p>
+          </header>
 
-          <label for="corp-input"
-            >One text per line <span class="label-hint">2 – 40 lines</span></label
-          >
-          <textarea id="corp-input" rows="6" spellcheck="false"></textarea>
-
-          <div class="btn-row">
-            <button id="corp-btn" type="button" disabled>Embed all</button>
-            <button id="corp-reset" class="btn-ghost" type="button">Reset corpus</button>
-            <div class="spacer"></div>
-            <span class="pill" id="corp-count">0 texts</span>
-          </div>
-
-          <p class="status" id="corp-status" aria-live="polite"></p>
-          <div class="error" id="corp-error" role="alert" hidden></div>
-
-          <div class="results" id="corp-results" hidden>
-            <div class="result-head">
-              <h3>Similarity matrix</h3>
-              <span class="subtle">click a cell or a row label</span>
-            </div>
-            <div class="matrix-wrap">
-              <div class="matrix-labels" id="corp-labels"></div>
-              <div class="matrix" id="corp-matrix"></div>
-            </div>
-            <div class="legend">
-              <span><span class="swatch" style="background: var(--surface-3)"></span> low</span>
-              <span><span class="swatch" style="background: var(--accent)"></span> high</span>
-              <span id="corp-matrix-note" class="subtle"></span>
+          <div class="panel-body">
+            <div class="field">
+              <label for="corp-input">One text per line <span class="label-hint">2 – 40 lines</span></label>
+              <textarea id="corp-input" rows="6" spellcheck="false"></textarea>
             </div>
 
-            <div class="result-head">
-              <h3>Nearest neighbours</h3>
-              <span class="pill" id="corp-selected-label"></span>
+            <div class="btn-row">
+              <button id="corp-btn" type="button" disabled>Embed all</button>
+              <button id="corp-reset" class="btn-ghost" type="button">Reset corpus</button>
+              <span class="pill" id="corp-count">0 texts</span>
             </div>
-            <ul class="neighbours" id="corp-neighbours"></ul>
+
+            <p class="status" id="corp-status" aria-live="polite"></p>
+            <div class="error" id="corp-error" role="alert" hidden></div>
+
+            <div class="results plate" id="corp-results" hidden>
+              <div class="result-head">
+                <h3>Similarity matrix</h3>
+                <span class="subtle">click a cell or a row label</span>
+              </div>
+              <div class="matrix-wrap">
+                <div class="matrix-labels" id="corp-labels"></div>
+                <div class="matrix" id="corp-matrix"></div>
+              </div>
+              <div class="legend">
+                <span><span class="swatch" data-scale="low"></span> low</span>
+                <span><span class="swatch" data-scale="high"></span> high</span>
+                <span id="corp-matrix-note" class="subtle"></span>
+              </div>
+
+              <div class="result-head">
+                <h3>Nearest neighbours</h3>
+                <span class="pill" id="corp-selected-label"></span>
+              </div>
+              <ul class="neighbours" id="corp-neighbours"></ul>
+            </div>
           </div>
         </section>
 
-        <!-- ================================================================
-             6 — SEMANTIC MAP
-             ================================================================ -->
+        <!-- ==============================================================
+             06 — MAP
+             ============================================================== -->
         <section class="panel" id="map" aria-labelledby="map-h">
-          <div class="panel-head">
-            <h2 id="map-h">
-              <span class="step" aria-hidden="true">6</span> The meaning map
-            </h2>
-            <span class="model-tag">PCA · 384d → 2d</span>
-          </div>
-          <p class="panel-sub">
-            Embeddings live in 384 dimensions, which nobody can picture. Project the corpus down to two
-            with principal component analysis and semantically similar sentences land near each other.
-            Hover a point to read it. This is the same projection behind every "embedding space" chart
-            you have seen.
-          </p>
+          <header class="panel-head reveal">
+            <p class="panel-kicker">§ 06 — the shape of meaning</p>
+            <h2 id="map-h">The map <span class="model-tag">PCA · 384d → 2d</span></h2>
+            <p class="panel-sub">
+              Embeddings live in 384 dimensions, which nobody can picture. Project the corpus down to
+              two with principal component analysis and semantically similar sentences land near each
+              other. Hover a point to read it.
+            </p>
+          </header>
 
-          <div class="canvas-wrap">
-            <canvas id="map-canvas" tabindex="0" aria-label="Two-dimensional projection of the corpus embeddings"></canvas>
-            <div class="canvas-empty" id="map-empty">
-              Embed a corpus in section 5 and the map appears here.
+          <div class="panel-body">
+            <div class="canvas-wrap">
+              <canvas id="map-canvas" tabindex="0" aria-label="Two-dimensional projection of the corpus embeddings"></canvas>
+              <div class="canvas-empty" id="map-empty">
+                Embed a corpus in §05 and the map appears here.
+              </div>
+              <div class="canvas-tooltip" id="map-tooltip" hidden></div>
             </div>
-            <div class="canvas-tooltip" id="map-tooltip" hidden></div>
+            <p class="hint" id="map-explained"></p>
           </div>
-          <p class="hint" id="map-explained"></p>
         </section>
       </main>
-
-      <footer class="site-footer">
-        <p>
-          Built with <a href="https://github.com/huggingface/transformers.js" target="_blank" rel="noopener">Transformers.js</a>
-          · <a href="https://huggingface.co/Xenova/gpt2" target="_blank" rel="noopener">GPT-2 tokenizer</a>
-          · <a href="https://huggingface.co/Xenova/all-MiniLM-L6-v2" target="_blank" rel="noopener">all-MiniLM-L6-v2</a>
-          · ONNX Runtime on WebAssembly / WebGPU.
-        </p>
-        <p>
-          Everything runs locally: your text is never uploaded, and each model is downloaded once then
-          served from your browser cache.
-        </p>
-        <div class="footer-links">
-          <a href="https://github.com/Ashiii27/tokenizer" target="_blank" rel="noopener">Source</a>
-          <a href="https://huggingface.co/docs/transformers.js" target="_blank" rel="noopener">Transformers.js docs</a>
-          <a href="https://github.com/Ashiii27/tokenizer/blob/main/IMPROVEMENTS.md" target="_blank" rel="noopener">Roadmap</a>
-        </div>
-      </footer>
     </div>
 
+    <!-- ==================================================================
+         COLOPHON
+         ================================================================== -->
+    <footer class="colophon">
+      <div class="colophon-mark" aria-hidden="true">◆</div>
+      <p class="colophon-title">Everything here runs locally.</p>
+      <p class="colophon-text">
+        Your text is never uploaded. Each model is downloaded once, then served from your browser's
+        cache. Built with
+        <a href="https://github.com/huggingface/transformers.js" target="_blank" rel="noopener">Transformers.js</a>,
+        <a href="https://huggingface.co/Xenova/gpt2" target="_blank" rel="noopener">GPT-2's tokenizer</a> and
+        <a href="https://huggingface.co/Xenova/all-MiniLM-L6-v2" target="_blank" rel="noopener">all-MiniLM-L6-v2</a>,
+        on ONNX Runtime over WebAssembly / WebGPU.
+      </p>
+      <div class="colophon-links">
+        <a href="https://github.com/Ashiii27/tokenizer" target="_blank" rel="noopener">Source</a>
+        <a href="https://github.com/Ashiii27/tokenizer/blob/main/IMPROVEMENTS.md" target="_blank" rel="noopener">Notes &amp; roadmap</a>
+        <a href="https://huggingface.co/docs/transformers.js" target="_blank" rel="noopener">Docs</a>
+        <span class="colophon-legal">MIT · set in Fraunces, Space Grotesk &amp; JetBrains Mono</span>
+      </div>
+    </footer>
+
     <noscript>
-      <p style="text-align: center; padding: 20px; color: #f85149">
-        This explainer needs JavaScript — the tokenizers and neural networks run right here in your
+      <p class="noscript">
+        This field guide needs JavaScript — the tokenizers and neural networks run right here in your
         browser.
       </p>
     </noscript>

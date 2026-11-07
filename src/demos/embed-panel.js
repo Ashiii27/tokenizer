@@ -176,8 +176,8 @@ export function initEmbedPanel({ client, initial, onNeedModel }) {
         .map((item) => `Text ${item.index === 0 ? 'A' : 'B'} (${formatCount(item.count)} tokens)`)
         .join(' and ');
       $('#emb-tokens-pill').textContent = 'truncated input';
-      $('#emb-tokens-pill').style.color = 'var(--warn)';
-      $('#emb-tokens-pill').style.borderColor = 'var(--warn)';
+      $('#emb-tokens-pill').style.color = 'var(--neg)';
+      $('#emb-tokens-pill').style.borderColor = 'var(--neg)';
       $('#sim-hint').textContent =
         `⚠ ${which} exceed${truncated.length === 1 ? 's' : ''} this model's ${formatCount(
           EMBEDDER.maxTokens,

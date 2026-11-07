@@ -81,7 +81,7 @@ export function readTheme() {
   } catch {
     /* ignore */
   }
-  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 export function writeTheme(theme) {

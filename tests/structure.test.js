@@ -120,3 +120,63 @@ test('no leftover references to the old script', () => {
     'index.html should not still load the old monolithic script.js',
   );
 });
+
+/**
+ * Design-system integrity.
+ *
+ * A visual rewrite silently breaks in two ways that tests usually miss: a
+ * script reads a CSS custom property the new stylesheet no longer defines
+ * (the canvas then paints with a hard-coded fallback from the old palette),
+ * or a class the panels emit has no rule at all. Both are checked here.
+ */
+
+const cssSource = ['tokens.css', 'base.css', 'components.css']
+  .map((name) => readFileSync(join(root, 'styles', name), 'utf8'))
+  .join('\n');
+
+test('every custom property the scripts read is defined in the stylesheets', () => {
+  const defined = new Set([...cssSource.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+  // set by script at runtime, so they have no declaration to find
+  const runtime = new Set(['--animate', '--vt-x', '--vt-y', '--i']);
+
+  const missing = [];
+  for (const file of jsFiles) {
+    for (const [, name] of readFileSync(file, 'utf8').matchAll(/(--[a-z][a-z0-9-]+)/g)) {
+      if (!defined.has(name) && !runtime.has(name)) missing.push(`${name} (${file.split('/src/')[1]})`);
+    }
+  }
+
+  assert.deepEqual([...new Set(missing)], [], 'undefined custom properties');
+});
+
+test('the chip palette is defined for all six tints', () => {
+  for (let tint = 1; tint <= 6; tint += 1) {
+    assert.match(cssSource, new RegExp(`\\[data-tint="${tint}"\\]`), `tint ${tint} has a rule`);
+  }
+});
+
+test('no stale palette colours survive from the previous design', () => {
+  const stale = ['#58a6ff', '#1f6feb', '#79c0ff', '#8ce99a', '#0a1017', '--accent', '--surface-3'];
+  for (const file of jsFiles) {
+    const source = readFileSync(file, 'utf8');
+    for (const token of stale) {
+      assert.ok(!source.includes(token), `${file.split('/src/')[1]} still references ${token}`);
+    }
+  }
+});
+
+test('fonts are self-hosted and licensed', () => {
+  const fontDir = join(root, 'assets', 'fonts');
+  const files = readdirSync(fontDir);
+  for (const face of ['fraunces', 'space-grotesk', 'jetbrains-mono']) {
+    assert.ok(files.some((f) => f.startsWith(face) && f.endsWith('.woff2')), `${face} woff2 present`);
+  }
+  assert.equal(files.filter((f) => f.startsWith('LICENSE-')).length, 3, 'one licence per face');
+  assert.ok(!readFileSync(join(root, 'index.html'), 'utf8').includes('fonts.googleapis.com'),
+    'no third-party font CDN');
+
+  // `woff2-variations` is a legacy descriptor that some browsers reject outright,
+  // which would silently drop the whole type system back to Georgia.
+  const tokens = readFileSync(join(root, 'styles', 'tokens.css'), 'utf8');
+  assert.ok(!tokens.includes('woff2-variations'), 'font src uses the portable woff2 descriptor');
+});

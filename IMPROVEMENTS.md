@@ -29,13 +29,42 @@ disappears.
 | 6 | Accessibility gaps | ✅ skip link, roving tabindex, live regions, AA contrast, reduced motion |
 | 7.1 | README was one line | ✅ full README — OG card, architecture diagram, model table, feature tour |
 | 7.2 | No licence, no templates, no editor config | ✅ MIT, CONTRIBUTING, issue/PR templates |
-| 7.3 | Deploy-only CI | ✅ `ci.yml` (55 tests) + deploy gated on it |
+| 7.3 | Deploy-only CI | ✅ `ci.yml` (65 tests) + deploy gated on it |
 | 7.4 | No social metadata | ✅ OG/Twitter meta, 1200×630 card, sitemap, robots |
 | 8 Tier 3 | BPE trainer, layer-wise view, glitch tokens, PWA, i18n | ⏳ deferred — see §12 |
 
-**Test suite:** 55 tests — unit (token boundaries, cosine, PCA, formatting), static structure
-(DOM ids, imports, assets), and a jsdom integration test that drives all six panels against a fake
-worker.
+**Test suite:** 65 tests — unit (token boundaries, cosine, PCA, formatting), static structure
+(DOM ids, imports, assets), a jsdom integration test that drives all six panels against a fake
+worker, and design-system guards (every custom property the scripts read must exist in the
+stylesheets; no stale palette colour may survive; all six chip tints must be defined).
+
+---
+
+## 13. v3 — the visual identity (shipped)
+
+The v2 page was correct and still looked like every other AI demo. v3 replaces the design language
+outright rather than retuning it.
+
+| Area | v2 | v3 |
+|---|---|---|
+| Palette | near-black `#0a1017`, blue `#58a6ff`, violet glow | warm paper `#f1ece1`, ink `#16130f`, one vermilion signal `#c0380f`, six muted chip tints |
+| Type | system/Inter stack | Fraunces (variable, `opsz`/`SOFT`/`WONK`) + Space Grotesk + JetBrains Mono, self-hosted, 183 KB |
+| Layout | centred column, cards with soft shadows | editorial masthead, split-word hero, 4-stage pipeline diagram, full-bleed marquee, sticky numbered rail with a progress rule, hairline-ruled sections, colophon footer |
+| Surfaces | glassmorphism, blur, gradients | flat paper, 1–3 px radii, hard offset shadows, corner ticks, 3.5 % grain |
+| Dark theme | invert of the light one | "Night Press" — warm near-black paper, same ink and signal |
+| Motion | hover transitions only | word-stagger hero, scroll reveals, count-up facts, chip stamp on deliberate tokenize, view-transition theme wipe — all disabled under `prefers-reduced-motion` |
+| Tests | 55 | 65 (design-system guards added) |
+
+Design decisions, the reference set they answer, and the numbers behind them are in
+[DESIGN.md](DESIGN.md). Three bugs the redesign introduced and the tests now prevent:
+
+1. `chips.js` still painted the old neon palette **inline**, which would have silently overridden
+   every new CSS tint — chips now carry `data-tint="1..6"` and the palette lives only in CSS.
+2. `map-panel.js` read `--accent` / `--text` / `--surface-3` from the old tokens, so the meaning map
+   drew with hard-coded fallbacks from the deleted palette.
+3. `50,257` set in Fraunces at `opsz 140` renders its comma as a full stop — numerals now use
+   `opsz 26`.
+
 
 ---
 

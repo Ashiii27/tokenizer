@@ -107,7 +107,7 @@ export function initLanguagesPanel({ client }) {
                   class: 'fill',
                   style: {
                     width: `${formatPercent(ratio / worst, 1).replace('%', '')}%`,
-                    background: isBaseline ? 'var(--ok)' : undefined,
+                    background: isBaseline ? 'var(--signal)' : undefined,
                   },
                 }),
               ),

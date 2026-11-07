@@ -14,16 +14,9 @@
 import { el } from './dom.js';
 import { splitVisible } from './tokens.js';
 
-export const CHIP_COLORS = [
-  '#79c0ff',
-  '#ffab70',
-  '#8ce99a',
-  '#d0bfff',
-  '#ffd43b',
-  '#66d9e8',
-  '#faa2c1',
-  '#ffa8a8',
-];
+/** Six paper tints, defined in styles/tokens.css. Rotation keeps neighbouring
+ *  tokens distinguishable without resorting to saturated UI colours. */
+export const CHIP_TINTS = 6;
 
 const ARROW_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End']);
 
@@ -46,9 +39,12 @@ export function renderChips({
   compact = false,
   color = true,
   specialIds = [],
+  animate = false,
   onSelect,
 }) {
-  const wrap = el('div', { class: `chips${compact ? ' is-compact' : ''}` });
+  const wrap = el('div', {
+    class: `chips${compact ? ' is-compact' : ''}${animate ? ' chips--animate' : ''}`,
+  });
   const fragment = document.createDocumentFragment();
   const specials = new Set(specialIds);
 
@@ -67,6 +63,8 @@ export function renderChips({
           ? `Token ${id}: byte fragment, the character completes in the next token`
           : `Token ${id}: ${JSON.stringify(text)}`,
       dataset: { raw: text, id: String(id), index: String(index + offset) },
+      // Stagger, capped so a 2,000-token paragraph doesn't animate for a minute.
+      style: animate ? { '--i': String(Math.min(index, 30)) } : undefined,
     });
 
     if (isSpecial) {
@@ -76,7 +74,9 @@ export function renderChips({
       chip.append('\u25CC'); // ◌ dotted circle — "a character is forming"
       chip.title = `Token ${id} — carries bytes only; the character completes in the next token`;
     } else {
-      if (color) chip.style.background = CHIP_COLORS[Math.abs(index + offset) % CHIP_COLORS.length];
+      if (color) {
+        chip.dataset.tint = String((Math.abs(index + offset) % CHIP_TINTS) + 1);
+      }
       for (const segment of splitVisible(text)) {
         if (segment.ws) {
           chip.append(el('span', { class: 'ws', 'aria-hidden': 'true' }, segment.text));

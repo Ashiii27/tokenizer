@@ -27,12 +27,12 @@ export function initMapPanel({ onSelect }) {
   function readThemeColors() {
     const styles = getComputedStyle(document.documentElement);
     return {
-      accent: styles.getPropertyValue('--accent').trim() || '#58a6ff',
-      accentStrong: styles.getPropertyValue('--accent-strong').trim() || '#1f6feb',
-      text: styles.getPropertyValue('--text').trim() || '#e8eef5',
-      muted: styles.getPropertyValue('--text-muted').trim() || '#93a2b3',
-      border: styles.getPropertyValue('--border-strong').trim() || '#2b3949',
-      surface: styles.getPropertyValue('--surface-3').trim() || '#0a1017',
+      accent: styles.getPropertyValue('--signal').trim() || '#c0380f',
+      accentStrong: styles.getPropertyValue('--signal-deep').trim() || '#a3320e',
+      text: styles.getPropertyValue('--ink').trim() || '#16130f',
+      muted: styles.getPropertyValue('--ink-2').trim() || '#5b5449',
+      border: styles.getPropertyValue('--rule-2').trim() || '#b6ab92',
+      surface: styles.getPropertyValue('--paper-sunk').trim() || '#e9e3d5',
     };
   }
 

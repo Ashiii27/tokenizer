@@ -52,10 +52,30 @@ own machine through WebAssembly or WebGPU. Whatever you paste never leaves your 
 | Tokenizer | `Xenova/gpt2` (+ Llama 3 / Qwen2.5 / BERT / T5) | Tokenizer files only — a few hundred KB each |
 | Embeddings | `Xenova/all-MiniLM-L6-v2` (384-dim) | 23 MB quantised; the standard small sentence encoder |
 | Build | **None** | Plain ES modules + CSS. `git clone`, serve, done |
-| Tests | Node's built-in runner + jsdom | 55 tests, zero config (`npm test`) |
+| Type | Fraunces + Space Grotesk + JetBrains Mono, self-hosted | 183 KB of variable woff2. No Google Fonts, no CDN, no layout shift |
+| Tests | Node's built-in runner + jsdom | 65 tests, zero config (`npm test`) |
 
 The only runtime dependencies are fetched from jsDelivr and the Hugging Face Hub on first use, then
 served from Cache Storage.
+
+---
+
+## Design
+
+The page is built as a **printed field guide that happens to run in a browser** — warm paper, ink,
+one vermilion signal, hairline rules, a serif display face at magazine scale, mono for every number.
+It is a deliberate answer to the default AI look (near-black, violet radial glow, frosted glass,
+Inter, gradient blobs).
+
+Motion is limited to five things that each do a job: word-by-word headline reveal, scroll-in
+reveals, a single count-up for the hero facts, a slower-than-usual marquee, and a token chip that
+stamps in when you press Tokenize. All of it collapses under `prefers-reduced-motion`, and none of
+it can leave content hidden if a script fails.
+
+**[→ DESIGN.md](DESIGN.md)** documents the whole system: the palette, the type scale and its
+`opsz` rules, the motion rules, the accessibility constraints, and the reference set of current
+award-winning sites the design is answering (Siena Film Foundation, Mat Voyce, Lusion, and the 2026
+trend surveys) — with what was taken from each.
 
 ---
 
@@ -74,7 +94,7 @@ Then, optionally:
 
 ```bash
 npm install     # jsdom, for the DOM integration test
-npm test        # 55 tests
+npm test        # 65 tests
 ```
 
 ---
@@ -133,7 +153,7 @@ src/lib/pca.js           384d → 2d projection                        ← teste
 src/lib/chips.js         token chip rendering, roving tabindex
 src/lib/{dom,format,progress,store,theme,urlstate,models}.js
 src/demos/*.js           one module per panel
-tests/                   55 tests: unit, structure, DOM integration
+tests/                   65 tests: unit, structure, DOM integration, design system
 scripts/make-og.py       regenerates assets/og.png
 ```
 

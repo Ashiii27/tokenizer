@@ -193,6 +193,11 @@ test('the app boots and wires every panel', async () => {
   assert.equal(bootError, null, `main.js threw during boot: ${bootError?.message}`);
   await flush();
   assert.deepEqual(errors, []);
+  assert.equal(
+    window.document.documentElement.dataset.theme,
+    'light',
+    'paper is the default theme',
+  );
 });
 
 test('panel 1 — tokens, stats, chips and the round-trip invariant', async () => {
@@ -385,4 +390,78 @@ test('renderChips marks fragments, whitespace and special tokens', async () => {
   assert.equal(chipsText(chips), ' \ndog[SEP]', 'raw text still joins cleanly');
 
   chips.remove();
+});
+
+
+/* ------------------------------------------------------------------------ */
+/*  Design system: structure and motion                                      */
+/* ------------------------------------------------------------------------ */
+
+test('the design system renders its structure', () => {
+  const doc = window.document;
+
+  assert.equal(doc.querySelectorAll('.hero-title .word').length, 4, 'hero headline is split into words');
+  assert.equal(doc.querySelectorAll('.pipeline .stage').length, 4, 'the pipeline has four stages');
+  assert.equal(doc.querySelectorAll('.rail-list a').length, 6, 'the index lists every section');
+  assert.ok(doc.querySelector('.marquee-track'), 'the marquee band is present');
+  assert.ok(doc.querySelector('.grain'), 'the paper grain plate is present');
+
+  // Self-hosted type: no third-party font request anywhere.
+  const fontLinks = [...doc.querySelectorAll('link[href*="fonts."]')];
+  assert.equal(fontLinks.length, 0, 'fonts are self-hosted, not fetched from Google/CDN');
+  const preload = doc.querySelector('link[rel="preload"][as="font"]');
+  assert.ok(preload?.href.includes('fraunces'), 'the display face is preloaded');
+});
+
+test('reveals are marked visible and never hide content when JS runs', () => {
+  const doc = window.document;
+  const revealed = doc.querySelector('.panel-head.reveal');
+  assert.ok(revealed.classList.contains('is-in'), 'in-view reveals are shown immediately');
+
+  // Nothing may be left invisible by the reveal system.
+  const hidden = [...doc.querySelectorAll('.reveal')].filter(
+    (node) => !node.classList.contains('is-in'),
+  );
+  assert.equal(hidden.length, 0, `${hidden.length} reveal(s) never became visible`);
+});
+
+test('the section index marks the current section', () => {
+  const current = [...window.document.querySelectorAll('.rail-list a[aria-current="true"]')];
+  assert.ok(current.length > 0, 'a rail link is marked current');
+  assert.match(current[0].getAttribute('href'), /^#/);
+});
+
+test('the rail progress line is wired to scroll position', () => {
+  const fill = window.document.getElementById('rail-fill');
+  assert.ok(fill, 'progress line exists');
+  assert.ok(fill.style.height !== '', 'progress line has an initial height');
+});
+
+test('hero counters finish on the real numbers', async () => {
+  await sleep(1400);
+  const values = [...window.document.querySelectorAll('[data-count]')].map((node) => ({
+    target: node.dataset.count,
+    text: node.textContent,
+  }));
+
+  for (const value of values) {
+    const expected = Number(value.target).toLocaleString('en-US');
+    assert.equal(value.text, expected, `counter ${value.target} should settle on ${expected}`);
+  }
+});
+
+
+test('token chips take their colour from the stylesheet', () => {
+  const chips = [...window.document.querySelectorAll('#tok-chips .chip')];
+  assert.ok(chips.length > 0, 'chips were rendered');
+
+  for (const chip of chips) {
+    assert.match(chip.dataset.tint ?? '', /^[1-6]$/, 'each chip carries a tint index');
+    assert.equal(chip.style.background, '', 'no inline colour — the palette lives in CSS');
+  }
+
+  // Neighbouring tokens must not share a tint, or the boundary disappears.
+  for (let index = 1; index < chips.length; index += 1) {
+    assert.notEqual(chips[index].dataset.tint, chips[index - 1].dataset.tint);
+  }
 });
