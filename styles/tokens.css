@@ -1,0 +1,151 @@
+/* ============================================================================
+   TOKENS — a print-specimen design system
+   ----------------------------------------------------------------------------
+   Direction: warm paper, ink, one vermilion signal. Editorial serif display,
+   grotesque for UI, mono for data. No glass, no gradient mesh, no neon — this
+   is meant to read like a printed field guide that happens to be alive.
+
+   Type is self-hosted (SIL OFL, see assets/fonts/): Fraunces for display,
+   Space Grotesk for interface, JetBrains Mono for anything numeric.
+   ========================================================================= */
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("../assets/fonts/fraunces-latin-var.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("../assets/fonts/space-grotesk-latin-var.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../assets/fonts/jetbrains-mono-latin-var.woff2") format("woff2");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ---- families -------------------------------------------------------- */
+  --f-display: "Fraunces", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --f-sans: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* ---- fluid type scale ------------------------------------------------ */
+  --t-display: clamp(3.3rem, 9.2vw, 7.4rem);
+  --t-h2: clamp(1.9rem, 4.2vw, 2.9rem);
+  --t-h3: 0.7rem;
+  --t-body: clamp(0.95rem, 0.92rem + 0.18vw, 1.04rem);
+  --t-lede: clamp(1.05rem, 0.96rem + 0.42vw, 1.32rem);
+  --t-small: 0.815rem;
+  --t-micro: 0.7rem;
+
+  /* ---- spacing --------------------------------------------------------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 18px;
+  --sp-5: 26px;
+  --sp-6: 38px;
+  --sp-7: 56px;
+  --sp-8: 82px;
+
+  --page-max: 1320px;
+  --rail-w: 168px;
+  --gutter: clamp(18px, 4vw, 52px);
+
+  /* ---- shape (nearly square: print, not app) --------------------------- */
+  --r-1: 2px;
+  --r-2: 3px;
+  --r-3: 5px;
+
+  /* ---- motion ---------------------------------------------------------- */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-1: 130ms;
+  --dur-2: 240ms;
+  --dur-3: 520ms;
+  --dur-4: 880ms;
+
+  /* ---- paper (light is the default) ------------------------------------ */
+  --paper: #f1ece1;
+  --paper-raised: #f9f5ed;
+  --paper-sunk: #e9e3d5;
+  --paper-deep: #ded7c6;
+
+  --ink: #16130f;
+  --ink-2: #5b5449;
+  --ink-3: #6f6759;
+
+  --rule: #d5ccb8;
+  --rule-2: #b6ab92;
+
+  --signal: #c0380f;
+  --signal-deep: #a3320e;
+  --signal-tint: rgba(192, 56, 15, 0.10);
+
+  --teal: #14544c;
+  --pos: #145f43;
+  --neg: #ac2a1d;
+
+  --shadow-hard: 3px 3px 0 var(--ink);
+  --shadow-soft: 0 18px 40px -32px rgba(22, 19, 15, 0.55);
+
+  /* ---- token chip tints (six, so neighbours never repeat) -------------- */
+  --chip-1: #e7d8b5;
+  --chip-2: #ced9c6;
+  --chip-3: #e8c9ba;
+  --chip-4: #ccd8e4;
+  --chip-5: #dad2e5;
+  --chip-6: #e7ced3;
+  --chip-ink: #191510;
+
+  color-scheme: light;
+}
+
+/* ==========================================================================
+   NIGHT PRESS — the dark theme
+   ========================================================================== */
+:root[data-theme="dark"] {
+  --paper: #121110;
+  --paper-raised: #1b1917;
+  --paper-sunk: #0c0b0a;
+  --paper-deep: #232019;
+
+  --ink: #f3ecdd;
+  --ink-2: #a99f8c;
+  --ink-3: #8b8272;
+
+  --rule: #2e2b25;
+  --rule-2: #474136;
+
+  --signal: #ff6b3a;
+  --signal-deep: #ff8f66;
+  --signal-tint: rgba(255, 107, 58, 0.14);
+
+  --teal: #7fd1c4;
+  --pos: #56c08d;
+  --neg: #ff6f5d;
+
+  --shadow-hard: 3px 3px 0 #000;
+  --shadow-soft: 0 20px 50px -34px rgba(0, 0, 0, 0.9);
+
+  --chip-1: #4a3d24;
+  --chip-2: #33453a;
+  --chip-3: #4b352c;
+  --chip-4: #2c3d4c;
+  --chip-5: #3b3450;
+  --chip-6: #4a3038;
+  --chip-ink: #f3ecdd;
+
+  color-scheme: dark;
+}

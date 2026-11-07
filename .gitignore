@@ -1,0 +1,14 @@
+# dependencies (only jsdom is needed, for the DOM test)
+node_modules/
+package-lock.json.bak
+
+# editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# test + tooling output
+coverage/
+.lighthouseci/
+*.log

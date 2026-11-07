@@ -1,0 +1,25 @@
+{
+  "name": "tokenizer-explainer",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tokenization and vector embeddings, explained with real models running in the browser.",
+  "homepage": "https://ashiii27.github.io/tokenizer/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ashiii27/tokenizer.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node --test \"tests/**/*.test.js\"",
+    "test:units": "node --test tests/tokens.test.js tests/similarity.test.js tests/pca.test.js tests/format.test.js tests/structure.test.js",
+    "og": "python3 scripts/make-og.py"
+  },
+  "devDependencies": {
+    "jsdom": "^31.0.0"
+  }
+}

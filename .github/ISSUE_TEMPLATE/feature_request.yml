@@ -1,0 +1,24 @@
+name: Idea or feature
+description: Suggest a model, a language, a visualisation or a correction.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What should it teach?
+      description: Start with the misconception or question, then the feature.
+    validations:
+      required: true
+  - type: dropdown
+    id: cost
+    attributes:
+      label: What would it cost the visitor?
+      options:
+        - Nothing new (no model download)
+        - A small download (tokenizer, under ~2 MB)
+        - A large download (embedding or generation model, 20 MB+)
+        - Not sure
+  - type: textarea
+    id: notes
+    attributes:
+      label: Model, dataset or reference links

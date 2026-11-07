@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ashiii27.github.io/tokenizer/sitemap.xml
