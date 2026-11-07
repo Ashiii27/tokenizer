@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>A corpus, a matrix and a map — retrieval in one screen</title>
+    <meta
+      name="description"
+      content="A field guide to what a language model actually reads. Run real tokenizers (GPT-2, Llama 3, Qwen, BERT, T5) and a sentence-embedding model entirely in your browser. Text becomes tokens, tokens become integers, integers become vectors."
+    />
+    <meta name="theme-color" content="#f1ece1" />
+
+    <!--
+      Resolve the theme before the first paint. theme.js owns every other
+      detail; without this one line, a reader whose OS is dark sees a flash of
+      paper while the module graph loads.
+    -->
+    <script>
+      try {
+        var stored = localStorage.getItem('tokenizer.theme');
+        document.documentElement.dataset.theme =
+          stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      } catch (error) {
+        document.documentElement.dataset.theme = 'light';
+      }
+    </script>
+    <meta name="color-scheme" content="light dark" />
+    <link rel="canonical" href="https://ashiii27.github.io/tokenizer/corpus.html" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="A corpus, a matrix and a map — retrieval in one screen" />
+    <meta
+      property="og:description"
+      content="Embed up to 40 sentences, read the similarity matrix, rank every item's nearest neighbours, and see the whole corpus projected from 384 dimensions to two."
+    />
+    <meta property="og:url" content="https://ashiii27.github.io/tokenizer/corpus.html" />
+    <meta property="og:image" content="https://ashiii27.github.io/tokenizer/assets/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="A corpus, a matrix and a map — retrieval in one screen" />
+    <meta
+      name="twitter:description"
+      content="Embed up to 40 sentences, read the similarity matrix, rank every item's nearest neighbours, and see the whole corpus projected from 384 dimensions to two."
+    />
+    <meta name="twitter:image" content="https://ashiii27.github.io/tokenizer/assets/og.png" />
+
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='14' fill='%23f1ece1'/><text x='50' y='72' font-family='Georgia,serif' font-size='64' font-weight='700' text-anchor='middle' fill='%23cf3f16'>T</text></svg>"
+    />
+
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://huggingface.co" crossorigin />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces-latin-var.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+
+    <link rel="stylesheet" href="styles/tokens.css" />
+    <link rel="stylesheet" href="styles/base.css" />
+    <link rel="stylesheet" href="styles/components.css" />
+  </head>
+  <body data-page="corpus.html">
+    <div class="grain" aria-hidden="true"></div>
+    <a class="skip-link" href="#main">Skip to the demo</a>
+
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="wordmark" href="index.html">
+          <span class="wordmark-mark" aria-hidden="true">◆</span>
+          <span class="wordmark-text">Tokenizer</span>
+          <span class="wordmark-note">a field guide</span>
+        </a>
+
+        <nav class="site-nav" aria-label="Chapters">
+          <a href="tokens.html"><span class="sn-num">01</span><span class="sn-label">Tokens</span></a>
+          <a href="tokenizers.html"><span class="sn-num">02</span><span class="sn-label">Tokenizers</span></a>
+          <a href="languages.html"><span class="sn-num">03</span><span class="sn-label">Languages</span></a>
+          <a href="vectors.html"><span class="sn-num">04</span><span class="sn-label">Vectors</span></a>
+          <a href="corpus.html" aria-current="page"><span class="sn-num">05</span><span class="sn-label">Corpus</span></a>
+        </nav>
+
+        <div class="masthead-tools">
+          <span class="tag" id="badge-library"><span id="badge-library-text">Transformers.js</span></span>
+          <span class="tag" id="badge-device" hidden><span id="badge-device-text">WASM</span></span>
+          <button id="theme-toggle" class="btn-icon" type="button" aria-label="Switch theme"></button>
+        </div>
+      </div>
+    </header>
+
+    <div class="error page-error" id="page-error" role="alert" hidden></div>
+
+    <div class="layout">
+      <nav class="rail" aria-label="All chapters">
+        <ol class="rail-list">
+          <li><a href="tokens.html"><span class="rail-num">01</span><span class="rail-label">Tokens</span></a></li>
+          <li><a href="tokenizers.html"><span class="rail-num">02</span><span class="rail-label">Tokenizers</span></a></li>
+          <li><a href="languages.html"><span class="rail-num">03</span><span class="rail-label">Languages</span></a></li>
+          <li><a href="vectors.html"><span class="rail-num">04</span><span class="rail-label">Vectors</span></a></li>
+          <li><a href="corpus.html" aria-current="page"><span class="rail-num">05</span><span class="rail-label">Corpus</span></a></li>
+        </ol>
+        <div class="rail-progress" aria-hidden="true"><span id="rail-fill"></span></div>
+      </nav>
+
+      <main id="main">
+        <article class="panel" id="corpus" aria-labelledby="corpus-h">
+          <header class="panel-head reveal">
+            <p class="panel-kicker">§ 05 — retrieval</p>
+            <h1 id="corpus-h">A corpus, at once <span class="model-tag" id="corpus-tag">cosine matrix</span></h1>
+            <p class="panel-sub">
+              Two texts is a demo; forty is a search index. Paste one sentence per line to embed them all, then read the similarity matrix, every item's nearest neighbours, and the same corpus flattened to two dimensions.
+            </p>
+          </header>
+
+        <div class="try reveal" style="--d: 1">
+          <p class="try-label">Try this</p>
+          <ol class="try-list">
+            <li>Paste a few unrelated sentences plus two near-duplicates, then find the pair that shouldn't be close.</li>
+            <li>Click a row label to rank that item's five nearest neighbours.</li>
+            <li>Hover the map: sentences that mean similar things land near each other, even though the projection kept only two of the 384 dimensions.</li>
+          </ol>
+        </div>
+
+          <div class="panel-body">
+            <div class="field">
+              <label for="corp-input">One text per line <span class="label-hint">2 – 40 lines</span></label>
+              <textarea id="corp-input" rows="6" spellcheck="false"></textarea>
+            </div>
+
+            <div class="btn-row">
+              <button id="corp-btn" type="button" disabled>Embed all</button>
+              <button id="corp-reset" class="btn-ghost" type="button">Reset corpus</button>
+              <span class="pill" id="corp-count">0 texts</span>
+            </div>
+
+            <p class="status" id="corp-status" aria-live="polite"></p>
+            <div class="error" id="corp-error" role="alert" hidden></div>
+
+            <div class="results plate" id="corp-results" hidden>
+              <div class="result-head">
+                <h2>Similarity matrix</h2>
+                <span class="subtle">click a cell or a row label</span>
+              </div>
+              <div class="matrix-wrap">
+                <div class="matrix-labels" id="corp-labels"></div>
+                <div class="matrix" id="corp-matrix"></div>
+              </div>
+              <div class="legend">
+                <span><span class="swatch" data-scale="low"></span> low</span>
+                <span><span class="swatch" data-scale="high"></span> high</span>
+                <span id="corp-matrix-note" class="subtle"></span>
+              </div>
+
+              <div class="result-head">
+                <h2>Nearest neighbours</h2>
+                <span class="pill" id="corp-selected-label"></span>
+              </div>
+              <ul class="neighbours" id="corp-neighbours"></ul>
+            </div>
+          
+          </div>
+
+          <div class="chapter-rule" aria-hidden="true"></div>
+
+          <header class="panel-head reveal">
+            <p class="panel-kicker">§ 05b — the same corpus, flattened</p>
+            <h2 id="map-h">The map <span class="model-tag">PCA · 384d → 2d</span></h2>
+            <p class="panel-sub">
+              Nobody can picture 384 dimensions. Project the corpus down to two with principal
+              component analysis and semantically similar sentences land near each other. Hover a
+              point to read it; click to select it in the matrix above.
+            </p>
+          </header>
+
+          <div class="panel-body">
+            <div class="canvas-wrap">
+              <canvas id="map-canvas" tabindex="0" aria-label="Two-dimensional projection of the corpus embeddings"></canvas>
+              <div class="canvas-empty" id="map-empty">
+                Embed the corpus above and the map appears here.
+              </div>
+              <div class="canvas-tooltip" id="map-tooltip" hidden></div>
+            </div>
+            <p class="hint" id="map-explained"></p>
+          
+          </div>
+
+      <aside class="page-notes reveal">
+        <h2>What you&rsquo;re looking at</h2>
+        <ul>
+          <li>Retrieval is ranking by cosine. That is the whole of semantic search, minus the index.</li>
+          <li>The matrix is symmetric and every vector is unit-normalised, so the diagonal is always 1.0.</li>
+          <li>The first run downloads about 23 MB of model; after that a corpus of this size embeds in a second or two.</li>
+        </ul>
+      </aside>
+
+      <nav class="pager" aria-label="Chapter navigation">
+        <a class="pager-link pager-prev" href="vectors.html">
+          <span class="pager-dir">← Previous</span>
+          <strong>04 — Vectors &amp; cosine</strong>
+        </a>
+        <a class="pager-link pager-next" href="index.html">
+          <span class="pager-dir">Next →</span>
+          <strong>Back to the start</strong>
+        </a>
+      </nav>
+        </article>
+      </main>
+    </div>
+
+    <footer class="colophon">
+      <div class="colophon-mark" aria-hidden="true">◆</div>
+      <p class="colophon-title">Everything here runs locally.</p>
+      <p class="colophon-text">
+        Your text is never uploaded. Each model is downloaded once, then served from your browser's
+        cache. Built with
+        <a href="https://github.com/huggingface/transformers.js" target="_blank" rel="noopener">Transformers.js</a>,
+        <a href="https://huggingface.co/Xenova/gpt2" target="_blank" rel="noopener">GPT-2's tokenizer</a> and
+        <a href="https://huggingface.co/Xenova/all-MiniLM-L6-v2" target="_blank" rel="noopener">all-MiniLM-L6-v2</a>,
+        on ONNX Runtime over WebAssembly / WebGPU.
+      </p>
+      <div class="colophon-links">
+        <a href="https://github.com/Ashiii27/tokenizer" target="_blank" rel="noopener">Source</a>
+        <a href="https://github.com/Ashiii27/tokenizer/blob/main/IMPROVEMENTS.md" target="_blank" rel="noopener">Notes &amp; roadmap</a>
+        <a href="https://huggingface.co/docs/transformers.js" target="_blank" rel="noopener">Docs</a>
+        <span class="colophon-legal">MIT · set in Fraunces, Space Grotesk &amp; JetBrains Mono</span>
+      </div>
+    </footer>
+
+    <noscript>
+      <p class="noscript">
+        This field guide needs JavaScript — the tokenizers and neural networks run right here in your
+        browser.
+      </p>
+    </noscript>
+
+
+    <script type="module" src="src/pages/corpus.js"></script>
+  </body>
+</html>

@@ -32,8 +32,9 @@ disappears.
 | 7.3 | Deploy-only CI | ✅ `ci.yml` (65 tests) + deploy gated on it |
 | 7.4 | No social metadata | ✅ OG/Twitter meta, 1200×630 card, sitemap, robots |
 | 8 Tier 3 | BPE trainer, layer-wise view, glitch tokens, PWA, i18n | ⏳ deferred — see §12 |
+| 9 | One page carried six demos and ~12 MB of model | ✅ v4 split it into six pages — see §14 |
 
-**Test suite:** 65 tests — unit (token boundaries, cosine, PCA, formatting), static structure
+**Test suite:** 67 tests — unit (token boundaries, cosine, PCA, formatting), static structure
 (DOM ids, imports, assets), a jsdom integration test that drives all six panels against a fake
 worker, and design-system guards (every custom property the scripts read must exist in the
 stylesheets; no stale palette colour may survive; all six chip tints must be defined).
@@ -526,3 +527,39 @@ the most work: `src/lib/bpe.js` + a merge-animation UI + tests.
 GitHub Pages cannot set them, so `SharedArrayBuffer` is unavailable and WASM inference stays
 single-threaded. Moving to Cloudflare Pages or Netlify would unlock both headers and a measurable
 speed-up. Documented rather than done, because it changes where the project is hosted.
+
+---
+
+## 14. v4 — six pages instead of one long scroll (shipped)
+
+The v3 page was finally worth looking at, and it was still too much: one document carried a hero,
+six demos, six explanations and every model the project owns. A first-time reader had to scroll past
+four panels to learn what the fifth was, and the page fetched the 23 MB embedder whether you wanted it
+or not.
+
+It is now six documents: `index.html` plus one page per idea (`tokens`, `tokenizers`, `languages`,
+`vectors`, `corpus`). The map moved into the corpus chapter, where it belongs — it is the same data
+seen from above, not a separate subject.
+
+| Concern | v3 | v4 |
+|---|---|---|
+| Structure | one 573-line document | landing page (301 lines) + five chapters (208–250 lines each) |
+| Media on load | worker + tokenizer + lazy 23 MB embedder | landing page downloads **nothing**; each chapter loads only its own model |
+| Navigation | in-page anchors | masthead chapter nav + per-page index rail + prev/next pager |
+| Explanation | one `panel-sub` paragraph per demo | two-sentence intro, a *try this* list, then a *what you're looking at* note |
+| Dead ends | none | none — every chapter links forward |
+| Tests | 65, one big DOM boot | 67, and a harness that boots **each page in its own JSDOM** |
+
+Three structural guarantees now enforced by `tests/structure.test.js`, because with no build step
+the chrome is repeated in six files and will drift:
+
+1. The masthead nav, wordmark, theme toggle, colophon, skip link and error slot must be **identical**
+   on every page, and the nav must list the chapters in reading order.
+2. Every id that a page's module graph queries must exist **on that page** — the graph is walked from
+   the `<script type="module">` tag, so a panel that moves pages takes its requirements with it.
+3. Every chapter must appear in the landing page's chapter list and in every page's index rail, and
+   every pager must point at a real page.
+
+`tests/dom.test.js` was rebuilt around `bootPage(file)`: each page boots in a fresh JSDOM with a fake
+worker, and the assertions for a panel only pass if *that page's markup* supports *that page's
+module*. Booting `index.html` alone would prove nothing about whether `tokens.html` works.

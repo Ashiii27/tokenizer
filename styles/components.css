@@ -337,7 +337,8 @@ button:disabled {
   margin-top: 0;
 }
 
-h3 {
+h3,
+.result-head h2 {
   font-family: var(--f-mono);
   font-size: var(--t-micro);
   font-weight: 500;

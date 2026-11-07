@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vectors &amp; cosine — meaning as 384 numbers</title>
+    <meta
+      name="description"
+      content="A field guide to what a language model actually reads. Run real tokenizers (GPT-2, Llama 3, Qwen, BERT, T5) and a sentence-embedding model entirely in your browser. Text becomes tokens, tokens become integers, integers become vectors."
+    />
+    <meta name="theme-color" content="#f1ece1" />
+
+    <!--
+      Resolve the theme before the first paint. theme.js owns every other
+      detail; without this one line, a reader whose OS is dark sees a flash of
+      paper while the module graph loads.
+    -->
+    <script>
+      try {
+        var stored = localStorage.getItem('tokenizer.theme');
+        document.documentElement.dataset.theme =
+          stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      } catch (error) {
+        document.documentElement.dataset.theme = 'light';
+      }
+    </script>
+    <meta name="color-scheme" content="light dark" />
+    <link rel="canonical" href="https://ashiii27.github.io/tokenizer/vectors.html" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Vectors &amp; cosine — meaning as 384 numbers" />
+    <meta
+      property="og:description"
+      content="Embed two texts with all-MiniLM-L6-v2 and read the cosine similarity, the arithmetic behind it, and the twelve dimensions that actually drive the score."
+    />
+    <meta property="og:url" content="https://ashiii27.github.io/tokenizer/vectors.html" />
+    <meta property="og:image" content="https://ashiii27.github.io/tokenizer/assets/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Vectors &amp; cosine — meaning as 384 numbers" />
+    <meta
+      name="twitter:description"
+      content="Embed two texts with all-MiniLM-L6-v2 and read the cosine similarity, the arithmetic behind it, and the twelve dimensions that actually drive the score."
+    />
+    <meta name="twitter:image" content="https://ashiii27.github.io/tokenizer/assets/og.png" />
+
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='14' fill='%23f1ece1'/><text x='50' y='72' font-family='Georgia,serif' font-size='64' font-weight='700' text-anchor='middle' fill='%23cf3f16'>T</text></svg>"
+    />
+
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://huggingface.co" crossorigin />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces-latin-var.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+
+    <link rel="stylesheet" href="styles/tokens.css" />
+    <link rel="stylesheet" href="styles/base.css" />
+    <link rel="stylesheet" href="styles/components.css" />
+  </head>
+  <body data-page="vectors.html">
+    <div class="grain" aria-hidden="true"></div>
+    <a class="skip-link" href="#main">Skip to the demo</a>
+
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="wordmark" href="index.html">
+          <span class="wordmark-mark" aria-hidden="true">◆</span>
+          <span class="wordmark-text">Tokenizer</span>
+          <span class="wordmark-note">a field guide</span>
+        </a>
+
+        <nav class="site-nav" aria-label="Chapters">
+          <a href="tokens.html"><span class="sn-num">01</span><span class="sn-label">Tokens</span></a>
+          <a href="tokenizers.html"><span class="sn-num">02</span><span class="sn-label">Tokenizers</span></a>
+          <a href="languages.html"><span class="sn-num">03</span><span class="sn-label">Languages</span></a>
+          <a href="vectors.html" aria-current="page"><span class="sn-num">04</span><span class="sn-label">Vectors</span></a>
+          <a href="corpus.html"><span class="sn-num">05</span><span class="sn-label">Corpus</span></a>
+        </nav>
+
+        <div class="masthead-tools">
+          <span class="tag" id="badge-library"><span id="badge-library-text">Transformers.js</span></span>
+          <span class="tag" id="badge-device" hidden><span id="badge-device-text">WASM</span></span>
+          <button id="theme-toggle" class="btn-icon" type="button" aria-label="Switch theme"></button>
+        </div>
+      </div>
+    </header>
+
+    <div class="error page-error" id="page-error" role="alert" hidden></div>
+
+    <div class="layout">
+      <nav class="rail" aria-label="All chapters">
+        <ol class="rail-list">
+          <li><a href="tokens.html"><span class="rail-num">01</span><span class="rail-label">Tokens</span></a></li>
+          <li><a href="tokenizers.html"><span class="rail-num">02</span><span class="rail-label">Tokenizers</span></a></li>
+          <li><a href="languages.html"><span class="rail-num">03</span><span class="rail-label">Languages</span></a></li>
+          <li><a href="vectors.html" aria-current="page"><span class="rail-num">04</span><span class="rail-label">Vectors</span></a></li>
+          <li><a href="corpus.html"><span class="rail-num">05</span><span class="rail-label">Corpus</span></a></li>
+        </ol>
+        <div class="rail-progress" aria-hidden="true"><span id="rail-fill"></span></div>
+      </nav>
+
+      <main id="main">
+        <article class="panel" id="embeddings" aria-labelledby="embeddings-h">
+          <header class="panel-head reveal">
+            <p class="panel-kicker">§ 04 — meaning as numbers</p>
+            <h1 id="embeddings-h">Vectors &amp; cosine <span class="model-tag" id="emb-model-tag">all-MiniLM-L6-v2 · 384d</span></h1>
+            <p class="panel-sub">
+              An embedding model squeezes a whole sentence into 384 numbers. Similar meanings produce similar numbers, so the angle between two vectors — <strong>cosine similarity</strong> — becomes a measure of how close in meaning two texts are.
+            </p>
+          </header>
+
+        <div class="try reveal" style="--d: 1">
+          <p class="try-label">Try this</p>
+          <ol class="try-list">
+            <li>Press a tricky pair. <em>Hot</em> and <em>cold</em> score high, because opposites live in the same contexts.</li>
+            <li>Try <em>river bank</em> against <em>bank account</em>. One vector cannot hold two meanings.</li>
+            <li>Read the twelve bars under the score — those are the dimensions that actually moved it.</li>
+          </ol>
+        </div>
+
+          <div class="panel-body">
+            <div class="progress" id="emb-progress">
+              <div class="bar"><div class="bar-fill" id="emb-bar"></div></div>
+              <div class="progress-line">
+                <span id="emb-file">not loaded yet</span>
+                <span id="emb-overall">0%</span>
+              </div>
+            </div>
+            <p class="status" id="emb-status" aria-live="polite">
+              The embedding model (~23 MB) downloads on your first comparison, or when you press the button.
+            </p>
+            <div class="error" id="emb-error" role="alert" hidden></div>
+
+            <div class="btn-row">
+              <button id="emb-load" class="btn-ghost" type="button">Download the model now (~23 MB)</button>
+            </div>
+
+            <div class="field-pair">
+              <div class="field">
+                <label for="emb-a">Text A</label>
+                <textarea id="emb-a" rows="2" spellcheck="false"></textarea>
+              </div>
+              <div class="field">
+                <label for="emb-b">Text B</label>
+                <textarea id="emb-b" rows="2" spellcheck="false"></textarea>
+              </div>
+            </div>
+
+            <div class="btn-row">
+              <button id="emb-btn" type="button">Compare</button>
+              <span class="btn-row-label">tricky pairs</span>
+              <span id="emb-pairs" class="btn-row-inline"></span>
+            </div>
+
+            <div class="results plate" id="emb-results" hidden>
+              <div class="result-head">
+                <h2>Cosine similarity</h2>
+                <span class="pill" id="emb-tokens-pill"></span>
+              </div>
+              <div class="sim-row">
+                <span class="score" id="sim-score">0.0000</span>
+                <span class="sim-label" id="sim-label"></span>
+              </div>
+              <div class="meter"><div class="meter-fill" id="sim-fill"></div></div>
+              <div class="meter-ticks"><span>0 · unrelated</span><span>0.5</span><span>1 · identical</span></div>
+              <p class="math-line" id="sim-math"></p>
+              <p class="hint" id="sim-hint"></p>
+
+              <div class="result-head"><h2>What drives that score</h2></div>
+              <p class="hint">
+                The dot product is a sum of <code>A<sub>i</sub> × B<sub>i</sub></code> across all 384
+                dimensions. These are the twelve that contribute most — positive bars pull the texts
+                together, negative bars push them apart.
+              </p>
+              <div class="legend">
+                <span><span class="swatch pos"></span> positive contribution</span>
+                <span><span class="swatch neg"></span> negative contribution</span>
+              </div>
+              <div class="dim-chart" id="emb-dims"></div>
+
+              <div class="result-head">
+                <h2>Text A's embedding</h2>
+                <span class="pill">first 64 of 384</span>
+              </div>
+              <p class="hint" id="emb-a-hint"></p>
+              <div class="dim-chart" id="emb-vec-a"></div>
+            </div>
+          
+          </div>
+
+      <aside class="page-notes reveal">
+        <h2>What you&rsquo;re looking at</h2>
+        <ul>
+          <li>The first comparison downloads about 23 MB of model. It is cached afterwards, and nothing you type is uploaded.</li>
+          <li>Scores are only comparable inside one model. 0.6 means nothing across two different embedding models.</li>
+          <li>MiniLM reads 512 tokens and silently ignores the rest — the pill above the score warns you when that happened.</li>
+        </ul>
+      </aside>
+
+      <nav class="pager" aria-label="Chapter navigation">
+        <a class="pager-link pager-prev" href="languages.html">
+          <span class="pager-dir">← Previous</span>
+          <strong>03 — The cost of language</strong>
+        </a>
+        <a class="pager-link pager-next" href="corpus.html">
+          <span class="pager-dir">Next →</span>
+          <strong>05 — A corpus, at once</strong>
+        </a>
+      </nav>
+        </article>
+      </main>
+    </div>
+
+    <footer class="colophon">
+      <div class="colophon-mark" aria-hidden="true">◆</div>
+      <p class="colophon-title">Everything here runs locally.</p>
+      <p class="colophon-text">
+        Your text is never uploaded. Each model is downloaded once, then served from your browser's
+        cache. Built with
+        <a href="https://github.com/huggingface/transformers.js" target="_blank" rel="noopener">Transformers.js</a>,
+        <a href="https://huggingface.co/Xenova/gpt2" target="_blank" rel="noopener">GPT-2's tokenizer</a> and
+        <a href="https://huggingface.co/Xenova/all-MiniLM-L6-v2" target="_blank" rel="noopener">all-MiniLM-L6-v2</a>,
+        on ONNX Runtime over WebAssembly / WebGPU.
+      </p>
+      <div class="colophon-links">
+        <a href="https://github.com/Ashiii27/tokenizer" target="_blank" rel="noopener">Source</a>
+        <a href="https://github.com/Ashiii27/tokenizer/blob/main/IMPROVEMENTS.md" target="_blank" rel="noopener">Notes &amp; roadmap</a>
+        <a href="https://huggingface.co/docs/transformers.js" target="_blank" rel="noopener">Docs</a>
+        <span class="colophon-legal">MIT · set in Fraunces, Space Grotesk &amp; JetBrains Mono</span>
+      </div>
+    </footer>
+
+    <noscript>
+      <p class="noscript">
+        This field guide needs JavaScript — the tokenizers and neural networks run right here in your
+        browser.
+      </p>
+    </noscript>
+
+
+    <script type="module" src="src/pages/vectors.js"></script>
+  </body>
+</html>

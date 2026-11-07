@@ -662,12 +662,14 @@ samp {
   color: var(--ink);
 }
 
-.rail a[aria-current="true"] {
+.rail a[aria-current="true"],
+.rail a[aria-current="page"] {
   color: var(--signal);
   border-bottom-color: var(--signal);
 }
 
-.rail a[aria-current="true"] .rail-num {
+.rail a[aria-current="true"] .rail-num,
+.rail a[aria-current="page"] .rail-num {
   opacity: 1;
 }
 
@@ -720,6 +722,7 @@ main {
   margin-bottom: var(--sp-3);
 }
 
+.panel-head h1,
 .panel-head h2 {
   display: flex;
   flex-wrap: wrap;
@@ -846,38 +849,9 @@ main {
     gap: 0;
   }
 
+  /* The topbar already carries the chapter nav; a second sticky index on a
+     phone is just another bar eating the viewport. */
   .rail {
-    position: sticky;
-    top: 57px; /* clears the sticky topbar */
-    z-index: 50;
-    max-height: none;
-    padding: 0;
-    margin: 0 calc(var(--gutter) * -1);
-    padding-inline: var(--gutter);
-    background: color-mix(in srgb, var(--paper) 94%, transparent);
-    backdrop-filter: blur(7px);
-    border-bottom: 1px solid var(--rule);
-  }
-
-  .rail-list {
-    flex-direction: row;
-    gap: var(--sp-4);
-    overflow-x: auto;
-    scrollbar-width: none;
-    padding: 9px 0;
-  }
-
-  .rail-list::-webkit-scrollbar {
-    display: none;
-  }
-
-  .rail a {
-    padding: 2px 0;
-    white-space: nowrap;
-    font-size: 0.66rem;
-  }
-
-  .rail-progress {
     display: none;
   }
 
@@ -973,5 +947,389 @@ main {
 
   .marquee-track {
     animation: none;
+  }
+}
+
+/* ==========================================================================
+   MULTI-PAGE CHROME
+   --------------------------------------------------------------------------
+   The guide is now six documents: a landing page and five chapters. The chrome
+   below is what makes them feel like one printed object — the same masthead,
+   an always-visible chapter index, and a footer that points forward.
+   ========================================================================== */
+
+/* ---- chapter nav in the topbar ------------------------------------------ */
+.site-nav {
+  display: flex;
+  gap: var(--sp-4);
+  margin-inline: auto var(--sp-4);
+}
+
+.site-nav a {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid transparent;
+  font-family: var(--f-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  text-decoration: none;
+  transition: color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+
+.site-nav a:hover {
+  color: var(--ink);
+  border-bottom-color: var(--rule-2);
+}
+
+.site-nav a[aria-current="page"] {
+  color: var(--ink);
+  border-bottom-color: var(--signal);
+}
+
+.sn-num {
+  color: var(--signal);
+}
+
+/* ---- the page-level error line ------------------------------------------ */
+.page-error {
+  max-width: var(--page-max);
+  margin: var(--sp-4) auto 0;
+  padding-inline: var(--gutter);
+}
+
+/* ---- "try this" --------------------------------------------------------- */
+.try {
+  max-width: 62ch;
+  margin-top: var(--sp-5);
+  padding: 2px 0 2px var(--sp-4);
+  border-left: 2px solid var(--signal);
+}
+
+.try-label {
+  font-family: var(--f-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--signal);
+  margin-bottom: var(--sp-2);
+}
+
+.try-list {
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: var(--t-body);
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.try-list li + li {
+  margin-top: 5px;
+}
+
+.try-list b,
+.try-list strong,
+.try-list code,
+.try-list em {
+  color: var(--ink);
+}
+
+/* ---- what you're looking at --------------------------------------------- */
+.page-notes {
+  max-width: 68ch;
+  margin-top: var(--sp-7);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--rule);
+}
+
+.page-notes h2 {
+  font-family: var(--f-sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: var(--sp-3);
+}
+
+.page-notes ul {
+  display: grid;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.page-notes li {
+  position: relative;
+  padding-left: 1.4rem;
+  font-size: var(--t-body);
+  line-height: 1.62;
+  color: var(--ink-2);
+}
+
+.page-notes li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  font-family: var(--f-mono);
+  color: var(--signal);
+}
+
+.page-notes code,
+.page-notes strong {
+  color: var(--ink);
+}
+
+/* ---- previous / next ---------------------------------------------------- */
+.pager {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sp-4);
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--rule-2);
+}
+
+.pager-link {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--sp-2) 0;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.pager-link strong {
+  font-family: var(--f-display);
+  font-weight: 600;
+  font-size: 1.05rem;
+  font-variation-settings: "opsz" 40;
+}
+
+.pager-dir {
+  font-family: var(--f-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  transition: color var(--dur-1) var(--ease);
+}
+
+.pager-next {
+  text-align: right;
+  align-items: flex-end;
+}
+
+.pager-link:hover .pager-dir,
+.pager-link:focus-visible .pager-dir {
+  color: var(--signal);
+}
+
+/* divider between two demos that share a page (§05 + map) */
+.chapter-rule {
+  height: 1px;
+  margin: var(--sp-7) 0 0;
+  background: var(--rule);
+}
+
+/* ---- the one call to action -------------------------------------------- */
+.hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-4);
+  margin: var(--sp-5) 0 var(--sp-6);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 1px solid var(--ink);
+  border-radius: var(--r-2);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--f-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  box-shadow: 3px 3px 0 var(--signal);
+  transition:
+    transform var(--dur-1) var(--ease),
+    box-shadow var(--dur-1) var(--ease);
+}
+
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--signal);
+}
+
+.hero-cta-note {
+  font-family: var(--f-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+/* ---- landing page: the chapter list ------------------------------------- */
+.chapters {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--sp-8) var(--gutter) var(--sp-7);
+}
+
+.chapters-head {
+  max-width: 60ch;
+  margin-bottom: var(--sp-6);
+}
+
+.chapters-head h2 {
+  font-size: var(--t-h2);
+  margin-bottom: var(--sp-3);
+}
+
+.chapters-sub {
+  font-size: var(--t-body);
+  line-height: 1.66;
+  color: var(--ink-2);
+  max-width: 58ch;
+}
+
+.chapter-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule-2);
+}
+
+.chapter {
+  border-bottom: 1px solid var(--rule);
+}
+
+.chapter-link {
+  display: grid;
+  grid-template-columns: 3.2rem minmax(0, 1fr) auto;
+  gap: var(--sp-4);
+  align-items: start;
+  padding: var(--sp-4) 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.chapter-num {
+  font-family: var(--f-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+  padding-top: 0.55em;
+}
+
+.chapter-title {
+  display: block;
+  font-family: var(--f-display);
+  font-size: clamp(1.35rem, 2.6vw, 1.85rem);
+  font-weight: 600;
+  font-variation-settings: "opsz" 40;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  transition: color var(--dur-1) var(--ease);
+}
+
+.chapter-dek {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--t-body);
+  color: var(--ink-2);
+}
+
+.chapter-meta {
+  display: block;
+  margin-top: var(--sp-2);
+  font-family: var(--f-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.chapter-arrow {
+  font-family: var(--f-mono);
+  color: var(--ink-3);
+  transition:
+    transform var(--dur-2) var(--ease),
+    color var(--dur-2) var(--ease);
+}
+
+.chapter-link:hover .chapter-title,
+.chapter-link:focus-visible .chapter-title {
+  color: var(--signal-deep);
+}
+
+.chapter-link:hover .chapter-arrow,
+.chapter-link:focus-visible .chapter-arrow {
+  color: var(--signal);
+  transform: translateX(5px);
+}
+
+.cost-note {
+  max-width: 72ch;
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--rule);
+  font-size: var(--t-small);
+  line-height: 1.62;
+  color: var(--ink-2);
+}
+
+.cost-note strong {
+  color: var(--ink);
+}
+
+@media (max-width: 1080px) {
+  /* The library badge is decoration; on a laptop it is the first thing to go so
+     the chapter nav keeps its labels. */
+  #badge-library {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .site-nav {
+    gap: var(--sp-3);
+    margin-inline: auto var(--sp-2);
+  }
+
+  .sn-label {
+    display: none;
+  }
+
+  #badge-device {
+    display: none;
+  }
+
+  .chapter-link {
+    grid-template-columns: 2.1rem minmax(0, 1fr) auto;
+    gap: var(--sp-3);
+  }
+}
+
+@media (max-width: 620px) {
+  .chapters {
+    padding-top: var(--sp-7);
+  }
+
+  .pager {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pager-next {
+    text-align: left;
+    align-items: flex-start;
+    border-top: 1px solid var(--rule);
   }
 }
