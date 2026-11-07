@@ -9,6 +9,21 @@
       content="A field guide to what a language model actually reads. Run real tokenizers (GPT-2, Llama 3, Qwen, BERT, T5) and a sentence-embedding model entirely in your browser. Text becomes tokens, tokens become integers, integers become vectors."
     />
     <meta name="theme-color" content="#f1ece1" />
+
+    <!--
+      Resolve the theme before the first paint. theme.js owns every other
+      detail; without this one line, a reader whose OS is dark sees a flash of
+      paper while the module graph loads.
+    -->
+    <script>
+      try {
+        var stored = localStorage.getItem('tokenizer.theme');
+        document.documentElement.dataset.theme =
+          stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      } catch (error) {
+        document.documentElement.dataset.theme = 'light';
+      }
+    </script>
     <meta name="color-scheme" content="light dark" />
     <link rel="canonical" href="https://ashiii27.github.io/tokenizer/" />
 
