@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="An interactive explainer that runs a GPT-2 tokenizer and a MiniLM embedding model entirely in your browser to show how LLMs turn text into tokens and vectors." />
+  <title>How LLMs Read Text — Tokenization &amp; Embeddings</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧩</text></svg>" />
+  <style>
+    /* ================================================================
+       Theme
+       ================================================================ */
+    :root {
+      --bg: #0a0e14;
+      --panel: #0f151d;
+      --panel-deep: #0b1017;
+      --border: #1e2936;
+      --border-strong: #2a3846;
+      --text: #e6edf3;
+      --muted: #8b98a5;
+      --faint: #5c6a78;
+      --accent: #58a6ff;
+      --accent-deep: #1f6feb;
+      --green: #3fb950;
+      --green-deep: #238636;
+      --red: #f85149;
+      --amber: #d29922;
+      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { color-scheme: dark; }
+    [hidden] { display: none !important; }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 40px 24px 28px;
+    }
+
+    /* ================================================================
+       Header / footer
+       ================================================================ */
+    header { margin-bottom: 26px; }
+
+    header h1 {
+      margin: 0 0 8px;
+      font-size: 27px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    header .subtitle {
+      margin: 0;
+      max-width: 68ch;
+      color: var(--muted);
+      font-size: 14.5px;
+    }
+
+    footer {
+      margin-top: 30px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      color: var(--faint);
+      font-size: 12.5px;
+      text-align: center;
+    }
+
+    /* ================================================================
+       Two-column layout (stacks on mobile)
+       ================================================================ */
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    @media (max-width: 940px) {
+      .grid { grid-template-columns: minmax(0, 1fr); }
+      .wrap { padding-top: 28px; }
+    }
+
+    .panel {
+      min-width: 0;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px 24px 26px;
+    }
+
+    .panel h2 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 0 0 12px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .step {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-deep), var(--accent));
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      flex: none;
+    }
+
+    .model-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      background: var(--panel-deep);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 2px 9px;
+    }
+
+    .explain {
+      margin: 0 0 6px;
+      padding-left: 12px;
+      border-left: 3px solid var(--accent-deep);
+      color: #b6c2ce;
+      font-size: 14px;
+    }
+
+    /* ================================================================
+       Status + errors
+       ================================================================ */
+    .status {
+      margin: 14px 0 0;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--amber);
+    }
+
+    .status::before { content: "● "; }
+
+    .status.loading::before {
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    .status.ok { color: var(--green); }
+    .status.bad { color: var(--red); }
+
+    @keyframes pulse { 50% { opacity: 0.25; } }
+
+    .error {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: rgba(248, 81, 73, 0.08);
+      border: 1px solid rgba(248, 81, 73, 0.45);
+      border-radius: 8px;
+      color: #ff9b93;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    /* ================================================================
+       Inputs & buttons
+       ================================================================ */
+    label {
+      display: block;
+      margin: 16px 0 6px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      color: #9fb0c0;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 78px;
+      resize: vertical;
+      background: var(--panel-deep);
+      color: var(--text);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: inherit;
+      font-size: 14px;
+    }
+
+    textarea::placeholder { color: var(--faint); }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.16);
+    }
+
+    button {
+      font: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent-deep);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 9px 22px;
+      margin-top: 14px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    button:hover:not(:disabled) { background: #388bfd; }
+    button:active:not(:disabled) { transform: translateY(1px); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* ================================================================
+       Download progress (section 2)
+       ================================================================ */
+    .progress { margin-top: 16px; }
+
+    .bar {
+      height: 10px;
+      background: var(--panel-deep);
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-deep), var(--accent));
+      border-radius: inherit;
+      transition: width 0.2s ease;
+    }
+
+    .progress-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 7px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+
+    .progress-line #emb-file {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .progress-line #emb-overall { flex: none; }
+
+    /* ================================================================
+       Results — shared
+       ================================================================ */
+    .results h3 {
+      margin: 24px 0 4px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #a8b6c4;
+    }
+
+    .results h3:first-child { margin-top: 18px; }
+
+    .result-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .count-pill {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      background: rgba(88, 166, 255, 0.1);
+      border: 1px solid rgba(88, 166, 255, 0.35);
+      border-radius: 999px;
+      padding: 1px 10px;
+      white-space: nowrap;
+    }
+
+    .hint {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12.5px;
+    }
+
+    /* ================================================================
+       Section 1 — token chips + ID array
+       ================================================================ */
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .chip {
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.45;
+      color: #0a0e14;
+      background: #79c0ff;
+      padding: 2px 7px;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      cursor: default;
+    }
+
+    .ids {
+      display: block;
+      margin-top: 10px;
+      padding: 12px 14px;
+      background: var(--panel-deep);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      color: #9fb0c0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    /* ================================================================
+       Section 2 — similarity meter + dimension chart
+       ================================================================ */
+    .sim-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .score {
+      font-family: var(--mono);
+      font-size: 34px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .sim-label { color: var(--muted); font-size: 13.5px; }
+
+    .meter {
+      height: 16px;
+      margin-top: 10px;
+      background: var(--panel-deep);
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .meter-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--green-deep), var(--green));
+      border-radius: inherit;
+      transition: width 0.5s ease;
+    }
+
+    .math-line {
+      margin: 8px 0 0;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--faint);
+      overflow-wrap: anywhere;
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .swatch {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      flex: none;
+    }
+
+    .swatch.pos { background: #2ea043; }
+    .swatch.neg { background: #da3633; }
+
+    .dim-chart {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 3px 22px;
+      margin-top: 10px;
+    }
+
+    .dim-row {
+      display: grid;
+      grid-template-columns: 2.2em minmax(0, 1fr) 4.8em;
+      align-items: center;
+      gap: 8px;
+      height: 15px;
+    }
+
+    .dim-idx {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--faint);
+      text-align: right;
+    }
+
+    .dim-track {
+      position: relative;
+      height: 9px;
+    }
+
+    /* faint vertical axis at the zero line of every row */
+    .dim-track::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: -3px;
+      bottom: -3px;
+      width: 1px;
+      background: var(--border-strong);
+    }
+
+    .dim-bar {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      min-width: 0;
+    }
+
+    .dim-bar.pos {
+      left: 50%;
+      background: #2ea043;
+      border-radius: 0 2px 2px 0;
+    }
+
+    .dim-bar.neg {
+      right: 50%;
+      background: #da3633;
+      border-radius: 2px 0 0 2px;
+    }
+
+    .dim-val {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>How LLMs read text</h1>
+      <p class="subtitle">
+        Two mini-demos that run real transformer models entirely in your browser — no server, no
+        setup. On first visit the models download from the Hugging Face Hub; after that they come
+        from your browser cache.
+      </p>
+    </header>
+
+    <main class="grid">
+      <!-- ============================================================
+           Section 1 — Tokenization
+           ============================================================ -->
+      <section class="panel" aria-labelledby="tok-heading">
+        <h2 id="tok-heading"><span class="step">1</span> Tokenization <span class="model-tag">Xenova/gpt2</span></h2>
+        <p class="explain">
+          A language model never sees letters or words — a tokenizer first splits text into small
+          pieces called tokens (often whole words or word fragments) and maps each piece to an ID
+          number from a fixed vocabulary, and those IDs are the only thing the model actually reads.
+        </p>
+
+        <p id="tok-status" class="status loading" aria-live="polite">Loading the GPT-2 tokenizer…</p>
+        <div id="tok-error" class="error" role="alert" hidden></div>
+
+        <label for="tok-input">Text to tokenize</label>
+        <textarea id="tok-input" rows="3"
+          placeholder="Type or paste any text…">The quick brown fox jumps over the lazy dog. Antidisestablishmentarianism is surprisingly easy to tokenize!</textarea>
+
+        <button id="tok-btn" type="button" disabled>Tokenize</button>
+
+        <div id="tok-results" class="results" hidden>
+          <div class="result-head">
+            <h3>Tokens</h3>
+            <span class="count-pill"><span id="tok-count">0</span> tokens</span>
+          </div>
+          <p class="hint">Each chip is one token, decoded back to text; colors rotate so adjacent
+            tokens stay visually distinct. Hover a chip to see its ID.</p>
+          <div id="tok-chips" class="chips"></div>
+
+          <div class="result-head">
+            <h3>Token IDs</h3>
+          </div>
+          <p class="hint">The same tokens as raw ID numbers — this array is what actually enters the
+            model. Concatenate the chips and you get your original text back.</p>
+          <code id="tok-ids" class="ids"></code>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           Section 2 — Embeddings & similarity
+           ============================================================ -->
+      <section class="panel" aria-labelledby="emb-heading">
+        <h2 id="emb-heading"><span class="step">2</span> Embeddings &amp; similarity <span class="model-tag">Xenova/all-MiniLM-L6-v2</span></h2>
+        <p class="explain">
+          An embedding model compresses a whole text into a single vector — 384 numbers that capture
+          its meaning — so comparing two vectors with cosine similarity (a dot product of the two
+          normalized vectors) gives a score for how close in meaning the texts are.
+        </p>
+
+        <div id="emb-progress" class="progress">
+          <div class="bar"><div id="emb-bar" class="bar-fill"></div></div>
+          <div class="progress-line">
+            <span id="emb-file">preparing to download…</span>
+            <span id="emb-overall">overall 0%</span>
+          </div>
+        </div>
+        <p id="emb-status" class="status loading" aria-live="polite">Downloading the embedding model in the background (~23&nbsp;MB on first visit)…</p>
+        <div id="emb-error" class="error" role="alert" hidden></div>
+
+        <label for="emb-a">Text A</label>
+        <textarea id="emb-a" rows="3" placeholder="First text…">A man is playing a guitar on stage.</textarea>
+
+        <label for="emb-b">Text B</label>
+        <textarea id="emb-b" rows="3" placeholder="Second text…">A musician performs a concert for the crowd.</textarea>
+
+        <button id="emb-btn" type="button" disabled>Compare</button>
+
+        <div id="emb-results" class="results" hidden>
+          <div class="result-head">
+            <h3>Cosine similarity</h3>
+          </div>
+          <div class="sim-row">
+            <span id="sim-score" class="score">0.0000</span>
+            <span id="sim-label" class="sim-label"></span>
+          </div>
+          <div class="meter"><div id="sim-fill" class="meter-fill"></div></div>
+          <p class="math-line" id="sim-math"></p>
+          <p class="hint">
+            The meter runs from 0 (unrelated) to 1 (very similar). With this model, paraphrases
+            usually score 0.7+, topically related texts land around 0.3–0.7, and unrelated pairs
+            fall below ~0.3. Scores very rarely dip below 0 — the meter just shows 0 then.
+          </p>
+
+          <div class="result-head">
+            <h3>Text A&rsquo;s embedding — first 64 of 384 dimensions</h3>
+          </div>
+          <p class="hint">
+            Each row is one number of the vector: green bars point positive, red bars negative, and
+            bar length is the value&rsquo;s size relative to the largest absolute value among these
+            64 dimensions.
+          </p>
+          <div class="legend">
+            <span class="swatch pos"></span> positive
+            <span class="swatch neg"></span> negative
+          </div>
+          <div id="dim-chart" class="dim-chart"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      Built with Transformers.js v2.17.2 · GPT-2 tokenizer · all-MiniLM-L6-v2 sentence embeddings ·
+      everything runs locally in your browser.
+    </footer>
+  </div>
+
+  <noscript>
+    <p style="text-align:center; padding: 20px; color: #f85149;">
+      This explainer needs JavaScript — the tokenizers and neural networks run right here in your browser.
+    </p>
+  </noscript>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
