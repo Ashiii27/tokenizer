@@ -1,10 +1,14 @@
 /**
- * End-to-end DOM test.
+ * End-to-end DOM tests, one document at a time.
  *
  * The real models can't run in CI (they live on the Hugging Face Hub), so the
  * worker is replaced by a fake that answers with the same message protocol.
- * Everything else — index.html, all six panels, the client RPC, the rendering
- * code — is the real thing. This is what catches "the button does nothing".
+ * Everything else — the actual HTML file, the page module, the panel, the
+ * client RPC, the rendering code — is the real thing.
+ *
+ * Each page boots in its own JSDOM: that is the point of splitting the guide,
+ * and it means a page can only pass if *its own* markup supports *its own*
+ * module. Booting index.html alone would not prove that tokens.html works.
  */
 
 import test from 'node:test';
@@ -36,140 +40,18 @@ function fakeVector(text, dims = 384) {
   return vector.map((v) => v / norm);
 }
 
-/* ------------------------------------------------------------------------ */
-/*  Environment                                                             */
-/* ------------------------------------------------------------------------ */
-
-const dom = new JSDOM(readFileSync(join(root, 'index.html'), 'utf8'), {
-  url: 'https://example.test/tokenizer/',
-  pretendToBeVisual: true,
-  runScripts: 'outside-only',
-});
-
-const { window } = dom;
-globalThis.window = window;
-globalThis.document = window.document;
-globalThis.Node = window.Node;
-globalThis.HTMLElement = window.HTMLElement;
-globalThis.localStorage = window.localStorage;
-globalThis.getComputedStyle = window.getComputedStyle.bind(window);
-globalThis.requestAnimationFrame = window.requestAnimationFrame.bind(window);
-
-window.matchMedia = () => ({
-  matches: false,
-  addEventListener() {},
-  removeEventListener() {},
-});
-window.navigator.clipboard = { writeText: async () => {} };
-
-// Canvas 2D is not implemented by jsdom; record calls so the map can be checked.
-const canvasCalls = [];
-window.HTMLCanvasElement.prototype.getContext = () => ({
-  setTransform: (...args) => canvasCalls.push(['setTransform', ...args]),
-  clearRect: () => canvasCalls.push(['clearRect']),
-  beginPath: () => canvasCalls.push(['beginPath']),
-  arc: (...args) => canvasCalls.push(['arc', ...args]),
-  fill: () => canvasCalls.push(['fill']),
-  stroke: () => canvasCalls.push(['stroke']),
-  moveTo: () => {},
-  lineTo: () => {},
-  fillText: (...args) => canvasCalls.push(['fillText', ...args]),
-  set fillStyle(value) {
-    canvasCalls.push(['fillStyle', value]);
-  },
-  set strokeStyle(value) {},
-  set lineWidth(value) {},
-  set font(value) {},
-  set textAlign(value) {},
-  set globalAlpha(value) {},
-});
-
-globalThis.MutationObserver = window.MutationObserver;
-
-// Feature detection reads `window`, so the stubs must live there too.
-window.IntersectionObserver = globalThis.IntersectionObserver = class {
-  constructor(callback) {
-    this.callback = callback;
-  }
-  observe(target) {
-    // Everything counts as visible: this also exercises the lazy model load.
-    this.callback([{ isIntersecting: true, target }], this);
-  }
-  disconnect() {}
-  unobserve() {}
-};
-
-window.ResizeObserver = globalThis.ResizeObserver = class {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-};
-
-globalThis.Worker = class FakeWorker {
-  constructor() {
-    this.listeners = [];
-    this.lastOp = null;
-  }
-
-  addEventListener(type, handler) {
-    if (type === 'message') this.listeners.push(handler);
-  }
-
-  #emit(data) {
-    for (const handler of this.listeners) handler({ data });
-  }
-
-  postMessage({ id, op, payload }) {
-    this.lastOp = op;
-    window.setTimeout(() => {
-      try {
-        if (op === 'tokenize') {
-          const result = fakeTokenize(payload.text);
-          result.specialIds = [1, 2];
-          if (payload.addSpecialTokens) {
-            result.ids = [1, ...result.ids, 2];
-            result.texts = ['[CLS]', ...result.texts, '[SEP]'];
-            result.full = `[CLS]${payload.text}[SEP]`;
-          }
-          this.#emit({ id, ok: true, result });
-        } else if (op === 'load-tokenizer') {
-          this.#emit({ id, ok: true, result: { repo: 'fake/gpt2', api: 'modern' } });
-        } else if (op === 'load-embedder') {
-          this.#emit({ id, ok: true, result: { device: 'wasm', api: 'modern' } });
-        } else if (op === 'embed') {
-          this.#emit({
-            type: 'progress',
-            stage: 'embedder',
-            loaded: 12_000_000,
-            total: 23_000_000,
-            progress: 0.52,
-            files: 4,
-          });
-          this.#emit({
-            id,
-            ok: true,
-            result: {
-              vectors: payload.texts.map((text) => fakeVector(text)),
-              dims: 384,
-              device: 'wasm',
-              tokenCounts: payload.texts.map((text) => Math.ceil(text.length / 4)),
-            },
-          });
-        } else {
-          this.#emit({ id, ok: false, error: `fake worker: unknown op ${op}` });
-        }
-      } catch (error) {
-        this.#emit({ id, ok: false, error: error.message });
-      }
-    }, 0);
-  }
-
-  terminate() {}
-};
-
-/* ------------------------------------------------------------------------ */
-
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+
+/** Poll until `check()` is true — rAF cadence in jsdom is not something to guess at. */
+async function waitUntil(check, timeout = 5000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    if (check()) return true;
+    // eslint-disable-next-line no-await-in-loop
+    await sleep(50);
+  }
+  return check();
+}
 
 const flush = async (times = 12) => {
   for (let i = 0; i < times; i += 1) {
@@ -178,36 +60,232 @@ const flush = async (times = 12) => {
   }
 };
 
-const $ = (id) => window.document.getElementById(id);
+/* ------------------------------------------------------------------------ */
+/*  The harness                                                             */
+/* ------------------------------------------------------------------------ */
 
-let bootError = null;
-const errors = [];
-window.addEventListener('error', (event) => errors.push(event.message));
+let bootSequence = 0;
+let workerStarts = 0;
 
-test('the app boots and wires every panel', async () => {
+/**
+ * Boot one page: fresh window, fresh globals, real markup, real entry module.
+ * The module is imported with a unique query so each page gets its own instance.
+ */
+async function bootPage(file) {
+  const html = readFileSync(join(root, file), 'utf8');
+  const dom = new JSDOM(html, {
+    url: `https://example.test/tokenizer/${file}`,
+    pretendToBeVisual: true,
+    runScripts: 'outside-only',
+  });
+
+  const { window } = dom;
+  const canvasCalls = [];
+  const workers = { count: 0 };
+
+  globalThis.window = window;
+  globalThis.document = window.document;
+  globalThis.Node = window.Node;
+  globalThis.HTMLElement = window.HTMLElement;
+  globalThis.localStorage = window.localStorage;
+  globalThis.getComputedStyle = window.getComputedStyle.bind(window);
+  globalThis.requestAnimationFrame = window.requestAnimationFrame.bind(window);
+  globalThis.MutationObserver = window.MutationObserver;
+
+  window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  window.navigator.clipboard = { writeText: async () => {} };
+
+  // Canvas 2D is not implemented by jsdom; record calls so the map can be checked.
+  window.HTMLCanvasElement.prototype.getContext = () => ({
+    setTransform: (...args) => canvasCalls.push(['setTransform', ...args]),
+    clearRect: () => canvasCalls.push(['clearRect']),
+    beginPath: () => canvasCalls.push(['beginPath']),
+    arc: (...args) => canvasCalls.push(['arc', ...args]),
+    fill: () => canvasCalls.push(['fill']),
+    stroke: () => canvasCalls.push(['stroke']),
+    moveTo: () => {},
+    lineTo: () => {},
+    fillText: (...args) => canvasCalls.push(['fillText', ...args]),
+    set fillStyle(value) {
+      canvasCalls.push(['fillStyle', value]);
+    },
+    set strokeStyle(value) {},
+    set lineWidth(value) {},
+    set font(value) {},
+    set textAlign(value) {},
+    set globalAlpha(value) {},
+  });
+
+  // Everything counts as visible, which also exercises the lazy model load.
+  window.IntersectionObserver = globalThis.IntersectionObserver = class {
+    constructor(callback) {
+      this.callback = callback;
+    }
+    observe(target) {
+      this.callback([{ isIntersecting: true, target }], this);
+    }
+    disconnect() {}
+    unobserve() {}
+  };
+
+  window.ResizeObserver = globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+
+  globalThis.Worker = class FakeWorker {
+    constructor() {
+      workers.count += 1;
+      workerStarts += 1;
+      this.listeners = [];
+      this.lastOp = null;
+    }
+
+    addEventListener(type, handler) {
+      if (type === 'message') this.listeners.push(handler);
+    }
+
+    #emit(data) {
+      for (const handler of this.listeners) handler({ data });
+    }
+
+    postMessage({ id, op, payload }) {
+      this.lastOp = op;
+      window.setTimeout(() => {
+        try {
+          if (op === 'tokenize') {
+            const result = fakeTokenize(payload.text);
+            result.specialIds = [1, 2];
+            if (payload.addSpecialTokens) {
+              result.ids = [1, ...result.ids, 2];
+              result.texts = ['[CLS]', ...result.texts, '[SEP]'];
+              result.full = `[CLS]${payload.text}[SEP]`;
+            }
+            this.#emit({ id, ok: true, result });
+          } else if (op === 'load-tokenizer') {
+            this.#emit({ id, ok: true, result: { repo: 'fake/gpt2', api: 'modern' } });
+          } else if (op === 'load-embedder') {
+            this.#emit({ id, ok: true, result: { device: 'wasm', api: 'modern' } });
+          } else if (op === 'embed') {
+            this.#emit({
+              type: 'progress',
+              stage: 'embedder',
+              loaded: 12_000_000,
+              total: 23_000_000,
+              progress: 0.52,
+              files: 4,
+            });
+            this.#emit({
+              id,
+              ok: true,
+              result: {
+                vectors: payload.texts.map((text) => fakeVector(text)),
+                dims: 384,
+                device: 'wasm',
+                tokenCounts: payload.texts.map((text) => Math.ceil(text.length / 4)),
+              },
+            });
+          } else {
+            this.#emit({ id, ok: false, error: `fake worker: unknown op ${op}` });
+          }
+        } catch (error) {
+          this.#emit({ id, ok: false, error: error.message });
+        }
+      }, 0);
+    }
+
+    terminate() {}
+  };
+
+  const errors = [];
+  window.addEventListener('error', (event) => errors.push(event.message));
+
+  const entry = html.match(/<script type="module" src="([^"]+)"><\/script>/)[1];
+  let bootError = null;
   try {
-    await import('../src/main.js');
+    await import(`../${entry}?page=${(bootSequence += 1)}`);
   } catch (error) {
     bootError = error;
   }
-  assert.equal(bootError, null, `main.js threw during boot: ${bootError?.message}`);
   await flush();
-  assert.deepEqual(errors, []);
-  assert.equal(
-    window.document.documentElement.dataset.theme,
-    'light',
-    'paper is the default theme',
+
+  const $ = (id) => window.document.getElementById(id);
+
+  return {
+    file,
+    window,
+    document: window.document,
+    $,
+    errors,
+    bootError,
+    canvasCalls,
+    workers,
+    text: (id) => $(id)?.textContent ?? '',
+  };
+}
+
+const click = (window, node) =>
+  node.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+/* ------------------------------------------------------------------------ */
+/*  Landing page                                                            */
+/* ------------------------------------------------------------------------ */
+
+test('landing — boots without starting a model worker', async () => {
+  const page = await bootPage('index.html');
+
+  assert.equal(page.bootError, null, `index.html threw: ${page.bootError?.message}`);
+  assert.deepEqual(page.errors, []);
+  assert.equal(page.workers.count, 0, 'the landing page downloads no models at all');
+  assert.equal(page.document.documentElement.dataset.theme, 'light', 'paper is the default theme');
+});
+
+test('landing — says what it is, then gets out of the way', async () => {
+  const page = await bootPage('index.html');
+  const doc = page.document;
+
+  assert.equal(doc.querySelectorAll('.hero-title .word').length, 4, 'headline is split into words');
+  assert.equal(doc.querySelectorAll('.pipeline .stage').length, 4, 'four-stage pipeline');
+
+  const cards = [...doc.querySelectorAll('.chapter-link')];
+  assert.equal(cards.length, 5, 'five chapters offered');
+  assert.deepEqual(
+    cards.map((card) => card.getAttribute('href')),
+    ['tokens.html', 'tokenizers.html', 'languages.html', 'vectors.html', 'corpus.html'],
+  );
+
+  // Nothing is hidden behind the reveal system once JS has run.
+  const hidden = [...doc.querySelectorAll('.reveal')].filter(
+    (node) => !node.classList.contains('is-in'),
+  );
+  assert.deepEqual(hidden.map((node) => node.className), [], 'every reveal became visible');
+
+  const facts = [...doc.querySelectorAll('[data-count]')];
+  assert.ok(facts.length >= 3, 'the hero carries real numbers');
+
+  const settled = await waitUntil(() =>
+    facts.every((fact) => fact.textContent === Number(fact.dataset.count).toLocaleString('en-US')),
+  );
+  assert.ok(
+    settled,
+    `counters did not finish: ${facts.map((fact) => fact.textContent).join(' / ')}`,
   );
 });
 
-test('panel 1 — tokens, stats, chips and the round-trip invariant', async () => {
-  await flush();
+/* ------------------------------------------------------------------------ */
+/*  Chapter 01 — tokens                                                     */
+/* ------------------------------------------------------------------------ */
+
+test('01 tokens — chips, stats and the round-trip invariant', async () => {
+  const page = await bootPage('tokens.html');
+  assert.equal(page.bootError, null, `tokens.html threw: ${page.bootError?.message}`);
+  const { $ } = page;
 
   assert.equal($('tok-status').classList.contains('is-ok'), true, 'tokenizer status is ok');
   assert.equal($('tok-btn').disabled, false, 'tokenize button enabled');
-
   assert.equal($('tok-results').hidden, false, 'results are visible');
-  assert.ok(Number($('tok-count').textContent.replace(/,/g, '')) > 5, 'token count is populated');
+  assert.ok(Number(page.text('tok-count').replace(/,/g, '')) > 5, 'token count populated');
 
   const chips = [...$('tok-chips').querySelectorAll('.chip')];
   assert.ok(chips.length > 5, 'chips rendered');
@@ -216,63 +294,93 @@ test('panel 1 — tokens, stats, chips and the round-trip invariant', async () =
     $('tok-input').value,
     'chips rejoin to the input exactly',
   );
-  assert.match($('tok-roundtrip').textContent, /✓/, 'the invariant is reported in the UI');
+  assert.match(page.text('tok-roundtrip'), /✓/, 'the invariant is reported in the UI');
 
   assert.equal($('tok-stats').querySelectorAll('.stat').length, 5, 'five stat tiles');
-  assert.ok($('tok-ids').textContent.startsWith('['), 'IDs rendered as JSON');
+  assert.ok(page.text('tok-ids').startsWith('['), 'IDs rendered as JSON');
+  assert.match(page.text('tok-context-text'), /\/ 1,024 tokens/);
 
-  // Context meter reflects the GPT-2 window.
-  assert.match($('tok-context-text').textContent, /\/ 1,024 tokens/);
-
-  // Chips are keyboard-reachable and expose a roving tabindex.
-  assert.equal(chips[0].getAttribute('tabindex'), '0');
+  assert.equal(chips[0].getAttribute('tabindex'), '0', 'one tab stop');
   assert.equal(chips[1].getAttribute('tabindex'), '-1');
   assert.ok(chips[0].getAttribute('aria-label').includes('Token'));
 
-  // Selecting a token fills the detail pane.
-  chips[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-  assert.match($('tok-detail').textContent, /token id/i);
+  click(page.window, chips[0]);
+  assert.match(page.text('tok-detail'), /token id/i);
+
+  // Tints come from the stylesheet, never from inline colours.
+  for (const chip of chips) {
+    assert.match(chip.dataset.tint ?? '', /^[1-6]$/, 'chip has a tint index');
+    assert.equal(chip.style.background, '', 'no inline colour');
+  }
+  for (let index = 1; index < chips.length; index += 1) {
+    assert.notEqual(chips[index].dataset.tint, chips[index - 1].dataset.tint);
+  }
+
+  assert.deepEqual(page.errors, []);
 });
 
-test('panel 1 — multilingual input round-trips (the old bug)', async () => {
-  const input = $('tok-input');
-  input.value = 'नमस्ते दुनिया 🌏 你好';
-  input.dispatchEvent(new window.Event('input', { bubbles: true }));
+test('01 tokens — multilingual input still round-trips (the old bug)', async () => {
+  const page = await bootPage('tokens.html');
+  const { $ } = page;
+
+  $('tok-input').value = 'नमस्ते दुनिया 🌏 你好';
+  $('tok-input').dispatchEvent(new page.window.Event('input', { bubbles: true }));
   await sleep(400); // the input handler is debounced
   await flush();
 
   const chips = [...$('tok-chips').querySelectorAll('.chip')];
-  assert.equal(chips.map((chip) => chip.dataset.raw).join(''), input.value);
-  assert.match($('tok-roundtrip').textContent, /✓/);
+  assert.equal(chips.map((chip) => chip.dataset.raw).join(''), $('tok-input').value);
+  assert.match(page.text('tok-roundtrip'), /✓/);
 });
 
-test('panel 1 — sample buttons fill the textarea', async () => {
-  const button = $('tok-input').closest('.panel').querySelector('[data-sample="multilingual"]');
-  button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+test('01 tokens — sample buttons fill the textarea, and the URL stays shareable', async () => {
+  const page = await bootPage('tokens.html');
+  const button = page.$('tok-input').closest('.panel').querySelector('[data-sample="multilingual"]');
+  click(page.window, button);
   await flush();
-  assert.match($('tok-input').value, /नमस्ते/);
+
+  assert.match(page.$('tok-input').value, /नमस्ते/);
+  const params = new URL(page.window.location.href).searchParams;
+  assert.ok(params.get('t'), 'tokenization text is in the URL');
 });
 
-test('panel 2 — tokenizer comparison renders one column per model', async () => {
+/* ------------------------------------------------------------------------ */
+/*  Chapter 02 — tokenizers                                                 */
+/* ------------------------------------------------------------------------ */
+
+test('02 tokenizers — one column per model, specials marked', async () => {
+  const page = await bootPage('tokenizers.html');
+  assert.equal(page.bootError, null, `tokenizers.html threw: ${page.bootError?.message}`);
+  const { $ } = page;
+
   $('cmp-input').value = 'Antidisestablishmentarianism costs tokens everywhere.';
-  $('cmp-btn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  click(page.window, $('cmp-btn'));
   await flush(20);
 
   const columns = [...$('cmp-grid').querySelectorAll('.compare-col')];
   assert.ok(columns.length >= 2, `expected comparison columns, got ${columns.length}`);
   assert.equal($('cmp-results').hidden, false);
-  assert.match($('cmp-summary').textContent, /tokens/);
+  assert.match(page.text('cmp-summary'), /tokens/);
 
   const counts = [...$('cmp-grid').querySelectorAll('.count')].map((node) => node.textContent);
   assert.ok(counts.every((count) => count !== '—'), 'every column has a token count');
 
   const specials = $('cmp-grid').querySelectorAll('.chip.is-special');
-  assert.ok(specials.length > 0, 'special tokens are marked, not silently merged into the text');
+  assert.ok(specials.length > 0, 'special tokens are marked, not merged into the text');
   assert.match(specials[0].textContent, /\[CLS\]|\[SEP\]/);
+  assert.deepEqual(page.errors, []);
 });
 
-test('panel 3 — the language table measures every sample', async () => {
-  $('lang-btn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+/* ------------------------------------------------------------------------ */
+/*  Chapter 03 — languages                                                  */
+/* ------------------------------------------------------------------------ */
+
+test('03 languages — a row per sample, with a cost column', async () => {
+  const page = await bootPage('languages.html');
+  assert.equal(page.bootError, null, `languages.html threw: ${page.bootError?.message}`);
+  const { $ } = page;
+
+  click(page.window, $('lang-btn'));
   await flush(20);
 
   const rows = [...$('lang-body').querySelectorAll('tr')];
@@ -281,30 +389,59 @@ test('panel 3 — the language table measures every sample', async () => {
 
   const tokens = [...$('lang-body').querySelectorAll('td.num')].map((cell) => cell.textContent);
   assert.ok(tokens.some((value) => Number(value.replace(/,/g, '')) > 0), 'token counts rendered');
-  assert.match($('lang-note').textContent, /tokens/);
+  assert.match(page.text('lang-note'), /tokens/);
+  assert.deepEqual(page.errors, []);
 });
 
-test('panel 4 — cosine similarity, dimension charts and the maths line', async () => {
-  await flush(20);
+/* ------------------------------------------------------------------------ */
+/*  Chapter 04 — vectors                                                    */
+/* ------------------------------------------------------------------------ */
 
-  assert.equal($('emb-btn').disabled, false, 'compare enabled after the model loads');
-  assert.match($('emb-status').textContent, /ready/i);
+test('04 vectors — downloading on first use, then cosine and dimensions', async () => {
+  const page = await bootPage('vectors.html');
+  assert.equal(page.bootError, null, `vectors.html threw: ${page.bootError?.message}`);
+  const { $ } = page;
 
-  $('emb-btn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-  await flush(20);
+  assert.equal($('emb-btn').disabled, false, 'compare is usable immediately — it loads on demand');
+  assert.equal(page.workers.count, 1, 'the worker starts, but no model is fetched yet');
+
+  click(page.window, $('emb-btn'));
+  await flush(30);
 
   assert.equal($('emb-results').hidden, false);
-  assert.match($('sim-score').textContent, /^-?\d\.\d{4}$/);
-  assert.match($('sim-math').textContent, /cos = \(A·B\)/);
-  assert.match($('sim-math').textContent, /384 dimensions/);
+  assert.match(page.text('sim-score'), /^-?\d\.\d{4}$/);
+  assert.match(page.text('sim-math'), /cos = \(A·B\)/);
+  assert.match(page.text('sim-math'), /384 dimensions/);
+  assert.equal($('emb-dims').querySelectorAll('.dim-row').length, 12, 'twelve contribution rows');
+  assert.equal($('emb-vec-a').querySelectorAll('.dim-row').length, 64, '64 dimensions shown');
 
-  const dims = $('emb-dims').querySelectorAll('.dim-row');
-  assert.equal(dims.length, 12, 'twelve contribution rows');
-  assert.equal($('emb-vec-a').querySelectorAll('.dim-row').length, 64, '64 embedding dimensions');
+  const params = new URL(page.window.location.href).searchParams;
+  assert.ok(params.get('a') && params.get('b'), 'both texts are in the URL');
+  assert.deepEqual(page.errors, []);
 });
 
-test('panel 5 — corpus matrix and nearest neighbours', async () => {
-  $('corp-btn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+test('04 vectors — the theme toggle flips the theme and persists it', async () => {
+  const page = await bootPage('vectors.html');
+  const before = page.document.documentElement.dataset.theme;
+
+  click(page.window, page.$('theme-toggle'));
+  const after = page.document.documentElement.dataset.theme;
+
+  assert.notEqual(before, after);
+  assert.ok(['dark', 'light'].includes(after));
+  assert.equal(page.window.localStorage.getItem('tokenizer.theme'), after);
+});
+
+/* ------------------------------------------------------------------------ */
+/*  Chapter 05 — corpus and map                                             */
+/* ------------------------------------------------------------------------ */
+
+test('05 corpus — the matrix, the neighbours and the map all come from one run', async () => {
+  const page = await bootPage('corpus.html');
+  assert.equal(page.bootError, null, `corpus.html threw: ${page.bootError?.message}`);
+  const { $ } = page;
+
+  click(page.window, $('corp-btn'));
   await flush(30);
 
   assert.equal($('corp-results').hidden, false);
@@ -317,55 +454,61 @@ test('panel 5 — corpus matrix and nearest neighbours', async () => {
   assert.ok(neighbours.length > 0, 'neighbours listed');
   assert.match($('corp-neighbours').textContent, /\.\d{3}/, 'scores are shown');
 
-  // Selecting a different row updates the neighbour list + the map.
-  $('corp-labels').querySelectorAll('.matrix-label')[1].dispatchEvent(
-    new window.MouseEvent('click', { bubbles: true }),
-  );
+  click(page.window, $('corp-labels').querySelectorAll('.matrix-label')[1]);
   await flush();
-  assert.match($('corp-selected-label').textContent, /^2 ·/);
-});
+  assert.match(page.text('corp-selected-label'), /^2 ·/);
 
-test('panel 6 — the map draws points on canvas', async () => {
-  await flush();
-
+  // The map is on the same page and reads the same store.
   assert.equal($('map-empty').hidden, true, 'the empty state is gone');
-  const arcs = canvasCalls.filter((call) => call[0] === 'arc');
-  assert.ok(arcs.length > 0, 'points drawn');
   assert.ok(
-    canvasCalls.some((call) => call[0] === 'fillText'),
+    page.canvasCalls.filter((call) => call[0] === 'arc').length > 0,
+    'points drawn on the canvas',
+  );
+  assert.ok(
+    page.canvasCalls.some((call) => call[0] === 'fillText'),
     'point labels drawn',
   );
-  assert.match($('map-explained').textContent, /component/);
+  assert.match(page.text('map-explained'), /component/);
+  assert.deepEqual(page.errors, []);
 });
 
-test('theme toggle flips the document theme and persists it', async () => {
-  const button = $('theme-toggle');
-  const before = window.document.documentElement.dataset.theme;
-  button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-  const after = window.document.documentElement.dataset.theme;
+/* ------------------------------------------------------------------------ */
+/*  Navigation                                                              */
+/* ------------------------------------------------------------------------ */
 
-  assert.notEqual(before, after);
-  assert.ok(['dark', 'light'].includes(after));
-  assert.equal(window.localStorage.getItem('tokenizer.theme'), after);
+test('every chapter marks itself in the top nav and in the rail', async () => {
+  for (const file of ['tokens.html', 'tokenizers.html', 'languages.html', 'vectors.html', 'corpus.html']) {
+    // eslint-disable-next-line no-await-in-loop
+    const page = await bootPage(file);
+    const current = [...page.document.querySelectorAll('[aria-current="page"]')];
+    const hrefs = current.map((node) => node.getAttribute('href'));
+
+    assert.ok(hrefs.length >= 2, `${file}: marked in both navs`);
+    assert.ok(hrefs.every((href) => href === file), `${file}: only itself is current (${hrefs})`);
+    assert.equal(
+      page.document.querySelector('.pager-next')?.getAttribute('href') !== file,
+      true,
+      `${file}: the pager goes somewhere else`,
+    );
+  }
 });
 
-test('URL state is written for shareable links', async () => {
-  await flush();
-  const params = new URL(window.location.href).searchParams;
-  assert.ok(params.get('t'), 'tokenization text is in the URL');
-  assert.ok(params.get('a') && params.get('b'), 'both comparison texts are in the URL');
+test('no uncaught errors on any page', async () => {
+  for (const file of ['index.html', 'tokens.html', 'corpus.html']) {
+    // eslint-disable-next-line no-await-in-loop
+    const page = await bootPage(file);
+    // eslint-disable-next-line no-await-in-loop
+    await flush();
+    assert.deepEqual(page.errors, [], `${file} raised an uncaught error`);
+  }
 });
-
-test('no uncaught errors during the whole run', () => {
-  assert.deepEqual(errors, []);
-});
-
 
 /* ------------------------------------------------------------------------ */
 /*  Chip rendering, exercised directly (no worker involved)                  */
 /* ------------------------------------------------------------------------ */
 
 test('renderChips marks fragments, whitespace and special tokens', async () => {
+  const page = await bootPage('index.html');
   const { renderChips, chipsText } = await import('../src/lib/chips.js');
 
   const chips = renderChips({
@@ -374,7 +517,7 @@ test('renderChips marks fragments, whitespace and special tokens', async () => {
     texts: ['', ' ', '\n', 'dog', '[SEP]'],
     specialIds: [55],
   });
-  window.document.body.append(chips);
+  page.document.body.append(chips);
   const nodes = [...chips.querySelectorAll('.chip')];
 
   assert.equal(nodes[0].classList.contains('is-fragment'), true, 'fragment chip');
@@ -390,78 +533,4 @@ test('renderChips marks fragments, whitespace and special tokens', async () => {
   assert.equal(chipsText(chips), ' \ndog[SEP]', 'raw text still joins cleanly');
 
   chips.remove();
-});
-
-
-/* ------------------------------------------------------------------------ */
-/*  Design system: structure and motion                                      */
-/* ------------------------------------------------------------------------ */
-
-test('the design system renders its structure', () => {
-  const doc = window.document;
-
-  assert.equal(doc.querySelectorAll('.hero-title .word').length, 4, 'hero headline is split into words');
-  assert.equal(doc.querySelectorAll('.pipeline .stage').length, 4, 'the pipeline has four stages');
-  assert.equal(doc.querySelectorAll('.rail-list a').length, 6, 'the index lists every section');
-  assert.ok(doc.querySelector('.marquee-track'), 'the marquee band is present');
-  assert.ok(doc.querySelector('.grain'), 'the paper grain plate is present');
-
-  // Self-hosted type: no third-party font request anywhere.
-  const fontLinks = [...doc.querySelectorAll('link[href*="fonts."]')];
-  assert.equal(fontLinks.length, 0, 'fonts are self-hosted, not fetched from Google/CDN');
-  const preload = doc.querySelector('link[rel="preload"][as="font"]');
-  assert.ok(preload?.href.includes('fraunces'), 'the display face is preloaded');
-});
-
-test('reveals are marked visible and never hide content when JS runs', () => {
-  const doc = window.document;
-  const revealed = doc.querySelector('.panel-head.reveal');
-  assert.ok(revealed.classList.contains('is-in'), 'in-view reveals are shown immediately');
-
-  // Nothing may be left invisible by the reveal system.
-  const hidden = [...doc.querySelectorAll('.reveal')].filter(
-    (node) => !node.classList.contains('is-in'),
-  );
-  assert.equal(hidden.length, 0, `${hidden.length} reveal(s) never became visible`);
-});
-
-test('the section index marks the current section', () => {
-  const current = [...window.document.querySelectorAll('.rail-list a[aria-current="true"]')];
-  assert.ok(current.length > 0, 'a rail link is marked current');
-  assert.match(current[0].getAttribute('href'), /^#/);
-});
-
-test('the rail progress line is wired to scroll position', () => {
-  const fill = window.document.getElementById('rail-fill');
-  assert.ok(fill, 'progress line exists');
-  assert.ok(fill.style.height !== '', 'progress line has an initial height');
-});
-
-test('hero counters finish on the real numbers', async () => {
-  await sleep(1400);
-  const values = [...window.document.querySelectorAll('[data-count]')].map((node) => ({
-    target: node.dataset.count,
-    text: node.textContent,
-  }));
-
-  for (const value of values) {
-    const expected = Number(value.target).toLocaleString('en-US');
-    assert.equal(value.text, expected, `counter ${value.target} should settle on ${expected}`);
-  }
-});
-
-
-test('token chips take their colour from the stylesheet', () => {
-  const chips = [...window.document.querySelectorAll('#tok-chips .chip')];
-  assert.ok(chips.length > 0, 'chips were rendered');
-
-  for (const chip of chips) {
-    assert.match(chip.dataset.tint ?? '', /^[1-6]$/, 'each chip carries a tint index');
-    assert.equal(chip.style.background, '', 'no inline colour — the palette lives in CSS');
-  }
-
-  // Neighbouring tokens must not share a tint, or the boundary disappears.
-  for (let index = 1; index < chips.length; index += 1) {
-    assert.notEqual(chips[index].dataset.tint, chips[index - 1].dataset.tint);
-  }
 });

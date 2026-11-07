@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tokens &amp; IDs — how a language model reads your text</title>
+    <meta
+      name="description"
+      content="A field guide to what a language model actually reads. Run real tokenizers (GPT-2, Llama 3, Qwen, BERT, T5) and a sentence-embedding model entirely in your browser. Text becomes tokens, tokens become integers, integers become vectors."
+    />
+    <meta name="theme-color" content="#f1ece1" />
+
+    <!--
+      Resolve the theme before the first paint. theme.js owns every other
+      detail; without this one line, a reader whose OS is dark sees a flash of
+      paper while the module graph loads.
+    -->
+    <script>
+      try {
+        var stored = localStorage.getItem('tokenizer.theme');
+        document.documentElement.dataset.theme =
+          stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      } catch (error) {
+        document.documentElement.dataset.theme = 'light';
+      }
+    </script>
+    <meta name="color-scheme" content="light dark" />
+    <link rel="canonical" href="https://ashiii27.github.io/tokenizer/tokens.html" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Tokens &amp; IDs — how a language model reads your text" />
+    <meta
+      property="og:description"
+      content="Cut any text into GPT-2 tokens, see the IDs the model actually receives, and check that the pieces rejoin your input exactly — in any language."
+    />
+    <meta property="og:url" content="https://ashiii27.github.io/tokenizer/tokens.html" />
+    <meta property="og:image" content="https://ashiii27.github.io/tokenizer/assets/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Tokens &amp; IDs — how a language model reads your text" />
+    <meta
+      name="twitter:description"
+      content="Cut any text into GPT-2 tokens, see the IDs the model actually receives, and check that the pieces rejoin your input exactly — in any language."
+    />
+    <meta name="twitter:image" content="https://ashiii27.github.io/tokenizer/assets/og.png" />
+
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='14' fill='%23f1ece1'/><text x='50' y='72' font-family='Georgia,serif' font-size='64' font-weight='700' text-anchor='middle' fill='%23cf3f16'>T</text></svg>"
+    />
+
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://huggingface.co" crossorigin />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces-latin-var.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+
+    <link rel="stylesheet" href="styles/tokens.css" />
+    <link rel="stylesheet" href="styles/base.css" />
+    <link rel="stylesheet" href="styles/components.css" />
+  </head>
+  <body data-page="tokens.html">
+    <div class="grain" aria-hidden="true"></div>
+    <a class="skip-link" href="#main">Skip to the demo</a>
+
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="wordmark" href="index.html">
+          <span class="wordmark-mark" aria-hidden="true">◆</span>
+          <span class="wordmark-text">Tokenizer</span>
+          <span class="wordmark-note">a field guide</span>
+        </a>
+
+        <nav class="site-nav" aria-label="Chapters">
+          <a href="tokens.html" aria-current="page"><span class="sn-num">01</span><span class="sn-label">Tokens</span></a>
+          <a href="tokenizers.html"><span class="sn-num">02</span><span class="sn-label">Tokenizers</span></a>
+          <a href="languages.html"><span class="sn-num">03</span><span class="sn-label">Languages</span></a>
+          <a href="vectors.html"><span class="sn-num">04</span><span class="sn-label">Vectors</span></a>
+          <a href="corpus.html"><span class="sn-num">05</span><span class="sn-label">Corpus</span></a>
+        </nav>
+
+        <div class="masthead-tools">
+          <span class="tag" id="badge-library"><span id="badge-library-text">Transformers.js</span></span>
+          <span class="tag" id="badge-device" hidden><span id="badge-device-text">WASM</span></span>
+          <button id="theme-toggle" class="btn-icon" type="button" aria-label="Switch theme"></button>
+        </div>
+      </div>
+    </header>
+
+    <div class="error page-error" id="page-error" role="alert" hidden></div>
+
+    <div class="layout">
+      <nav class="rail" aria-label="All chapters">
+        <ol class="rail-list">
+          <li><a href="tokens.html" aria-current="page"><span class="rail-num">01</span><span class="rail-label">Tokens</span></a></li>
+          <li><a href="tokenizers.html"><span class="rail-num">02</span><span class="rail-label">Tokenizers</span></a></li>
+          <li><a href="languages.html"><span class="rail-num">03</span><span class="rail-label">Languages</span></a></li>
+          <li><a href="vectors.html"><span class="rail-num">04</span><span class="rail-label">Vectors</span></a></li>
+          <li><a href="corpus.html"><span class="rail-num">05</span><span class="rail-label">Corpus</span></a></li>
+        </ol>
+        <div class="rail-progress" aria-hidden="true"><span id="rail-fill"></span></div>
+      </nav>
+
+      <main id="main">
+        <article class="panel" id="tokens" aria-labelledby="tokens-h">
+          <header class="panel-head reveal">
+            <p class="panel-kicker">§ 01 — the vocabulary</p>
+            <h1 id="tokens-h">Tokens &amp; IDs <span class="model-tag" id="tok-model-tag">Xenova/gpt2</span></h1>
+            <p class="panel-sub">
+              A tokenizer cuts text into pieces — whole words, word fragments, single bytes — and gives each piece an ID from a fixed vocabulary. Those IDs are the only thing the network ever reads.
+            </p>
+          </header>
+
+        <div class="try reveal" style="--d: 1">
+          <p class="try-label">Try this</p>
+          <ol class="try-list">
+            <li>Press <b>English</b>, then <b>Hindi + emoji</b>. One Devanagari character often costs two or three tokens.</li>
+            <li>Click any chip to see its ID, its byte length and where it sits in your text.</li>
+            <li>Tokenize <code>dog</code> and <code>" dog"</code> — the leading space is part of the token, so the IDs differ.</li>
+          </ol>
+        </div>
+
+          <div class="panel-body">
+            <p class="status is-loading" id="tok-status" aria-live="polite">Loading the GPT-2 tokenizer…</p>
+            <div class="error" id="tok-error" role="alert" hidden></div>
+
+            <div class="field">
+              <label for="tok-input">Text to tokenize <span class="label-hint">⌘/Ctrl + ↵</span></label>
+              <textarea id="tok-input" rows="3" spellcheck="false" placeholder="Type or paste any text…"></textarea>
+            </div>
+
+            <div class="btn-row">
+              <button id="tok-btn" type="button" disabled>Tokenize</button>
+              <span class="btn-row-label">samples</span>
+              <button class="btn-ghost btn-small" type="button" data-sample="english">English</button>
+              <button class="btn-ghost btn-small" type="button" data-sample="multilingual">Hindi + emoji</button>
+              <button class="btn-ghost btn-small" type="button" data-sample="code">Code</button>
+              <button class="btn-ghost btn-small" type="button" data-sample="numbers">Numbers</button>
+            </div>
+
+            <div class="results plate" id="tok-results" hidden>
+              <dl class="stats" id="tok-stats"></dl>
+
+              <div class="result-head">
+                <h2>Tokens</h2>
+                <span class="pill"><span id="tok-count">0</span> tokens</span>
+              </div>
+              <p class="hint" id="tok-hint">
+                Each chip is one token. Click or arrow through them to inspect one. Whitespace is
+                drawn as <code>·</code> for a space and <code>⏎</code> for a newline — a bare space
+                really is its own token.
+              </p>
+              <div id="tok-chips"></div>
+              <div class="legend">
+                <span><span class="swatch frag"></span> byte fragment, completed by the next token</span>
+                <span id="tok-roundtrip" class="subtle"></span>
+              </div>
+
+              <div class="detail" id="tok-detail" aria-live="polite">
+                Select a token above to see its ID, bytes and position.
+              </div>
+
+              <div class="context" id="tok-context">
+                <div class="context-track"><div class="context-fill" id="tok-context-fill"></div></div>
+                <div class="context-legend">
+                  <span id="tok-context-text">0 / 1,024 tokens</span>
+                  <span id="tok-context-note">GPT-2's context window</span>
+                </div>
+              </div>
+
+              <div class="result-head">
+                <h2>Token IDs</h2>
+                <button class="btn-ghost btn-small" type="button" id="tok-copy">Copy IDs</button>
+              </div>
+              <p class="hint">
+                This array is what enters the model. Concatenate the chips' text and you get your
+                input back — exactly, in any script.
+              </p>
+              <pre class="ids" id="tok-ids"></pre>
+            </div>
+          
+          </div>
+
+      <aside class="page-notes reveal">
+        <h2>What you&rsquo;re looking at</h2>
+        <ul>
+          <li>Chips are contiguous slices of one decode. Joined back together they reproduce your input exactly — Devanagari, Han characters and four-byte emoji included.</li>
+          <li>A dashed chip is a byte fragment: half a character, completed by the next token. That is why the round-trip check is done on bytes rather than characters.</li>
+          <li>Whitespace is drawn, never hidden: <code>·</code> is a space and <code>⏎</code> a newline. A bare space really is its own token.</li>
+          <li>The meter counts against GPT-2's 1,024-token context window — the number that decides how much text fits in one prompt.</li>
+        </ul>
+      </aside>
+
+      <nav class="pager" aria-label="Chapter navigation">
+        <a class="pager-link pager-prev" href="index.html">
+          <span class="pager-dir">← Previous</span>
+          <strong>Start here</strong>
+        </a>
+        <a class="pager-link pager-next" href="tokenizers.html">
+          <span class="pager-dir">Next →</span>
+          <strong>02 — Tokenizers disagree</strong>
+        </a>
+      </nav>
+        </article>
+      </main>
+    </div>
+
+    <footer class="colophon">
+      <div class="colophon-mark" aria-hidden="true">◆</div>
+      <p class="colophon-title">Everything here runs locally.</p>
+      <p class="colophon-text">
+        Your text is never uploaded. Each model is downloaded once, then served from your browser's
+        cache. Built with
+        <a href="https://github.com/huggingface/transformers.js" target="_blank" rel="noopener">Transformers.js</a>,
+        <a href="https://huggingface.co/Xenova/gpt2" target="_blank" rel="noopener">GPT-2's tokenizer</a> and
+        <a href="https://huggingface.co/Xenova/all-MiniLM-L6-v2" target="_blank" rel="noopener">all-MiniLM-L6-v2</a>,
+        on ONNX Runtime over WebAssembly / WebGPU.
+      </p>
+      <div class="colophon-links">
+        <a href="https://github.com/Ashiii27/tokenizer" target="_blank" rel="noopener">Source</a>
+        <a href="https://github.com/Ashiii27/tokenizer/blob/main/IMPROVEMENTS.md" target="_blank" rel="noopener">Notes &amp; roadmap</a>
+        <a href="https://huggingface.co/docs/transformers.js" target="_blank" rel="noopener">Docs</a>
+        <span class="colophon-legal">MIT · set in Fraunces, Space Grotesk &amp; JetBrains Mono</span>
+      </div>
+    </footer>
+
+    <noscript>
+      <p class="noscript">
+        This field guide needs JavaScript — the tokenizers and neural networks run right here in your
+        browser.
+      </p>
+    </noscript>
+
+
+    <script type="module" src="src/pages/tokens.js"></script>
+  </body>
+</html>

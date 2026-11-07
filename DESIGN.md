@@ -46,6 +46,13 @@ The dark theme is "Night Press" — warm near-black paper with the same ink and 
 
 All three are SIL OFL; licences are in `assets/fonts/`. Total added weight: **183 KB** of woff2.
 
+**Pages, not one long scroll.** The guide is six documents. The landing page carries the hero, the
+pipeline diagram and the chapter list — and downloads nothing at all. Each chapter is one idea with
+the same three-part shape: a two-sentence explanation, a *try this* list, the demo, then a *what
+you're looking at* note. The masthead, chapter index and colophon are identical on every page (there
+is no build step to share a partial, so `tests/structure.test.js` compares the chrome across all six
+and fails if one drifts). Every chapter ends with a pager, so a reader never dead-ends.
+
 **Structure.** A masthead and sticky bar; an editorial hero whose headline is split into words; a
 four-stage pipeline diagram (`text → tokens → ids → vector`) drawn with hairlines and mono captions; a
 full-bleed marquee of `·`-marked phrases; then a two-column body — a sticky numbered index on the left

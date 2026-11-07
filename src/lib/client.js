@@ -107,6 +107,23 @@ export class ModelClient {
     return result;
   }
 
+  /**
+   * Download the embedding model without embedding anything. The worker has
+   * always had this op; the corpus page needs it because it has no embed panel
+   * of its own to own the download UI.
+   */
+  async loadEmbedder(model) {
+    if (this.embedderReady) return { device: this.device };
+    const result = await this.request(
+      'load-embedder',
+      { repo: model.repo },
+      { timeout: 300000 },
+    );
+    this.embedderReady = true;
+    this.device = result.device ?? this.device;
+    return result;
+  }
+
   async embed(model, texts) {
     const result = await this.request(
       'embed',

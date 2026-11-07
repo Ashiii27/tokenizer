@@ -2,7 +2,6 @@
 
 **Tokenization and vector embeddings, running live in your browser.**
 
-[![CI](https://github.com/Ashiii27/tokenizer/actions/workflows/ci.yml/badge.svg)](https://github.com/Ashiii27/tokenizer/actions/workflows/ci.yml)
 [![Deploy](https://github.com/Ashiii27/tokenizer/actions/workflows/deploy.yml/badge.svg)](https://github.com/Ashiii27/tokenizer/actions/workflows/deploy.yml)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 
@@ -17,16 +16,19 @@ own machine through WebAssembly or WebGPU. Whatever you paste never leaves your 
 
 ---
 
-## What you can do with it
+## Five chapters, one idea each
 
-| Section | What it shows |
+Each chapter is its own page: a single question, a live demo, a "try this" list, and a short note on
+what you are looking at. Nothing is more than a scroll long, and every chapter ends with a link to the
+next one.
+
+| Page | What it shows |
 |---|---|
-| **1 · Tokens** | Type anything and see the real GPT-2 tokens, their IDs, their byte counts, and how each token maps back to your text. Includes a context-window meter. |
-| **2 · Tokenizers** | The same sentence through GPT-2, Llama 3, Qwen2.5, BERT and T5 side by side, with the token-count multiplier between the cheapest and most expensive. |
-| **3 · Languages** | One sentence in seven languages — English, Hindi, Bengali, Tamil, Chinese, Japanese, Arabic — and what each one costs in tokens. |
-| **4 · Embeddings** | Cosine similarity between two texts, the arithmetic spelled out, and the twelve dimensions that actually drive the score. |
-| **5 · Corpus** | Paste up to 40 sentences: an n×n similarity matrix plus every item's nearest neighbours. Retrieval, in one screen. |
-| **6 · Meaning map** | The same corpus projected from 384 dimensions to 2 with PCA — semantically similar sentences land near each other. |
+| **[Tokens & IDs](tokens.html)** | Type anything and see the real GPT-2 tokens, their IDs, their byte counts, and how each token maps back to your text. Includes a context-window meter. |
+| **[Tokenizers disagree](tokenizers.html)** | The same sentence through GPT-2, Llama 3, Qwen2.5, BERT and T5 side by side, with the token-count multiplier between the cheapest and most expensive. |
+| **[The cost of language](languages.html)** | One sentence in seven languages — English, Hindi, Bengali, Tamil, Chinese, Japanese, Arabic — and what each one costs in tokens. |
+| **[Vectors & cosine](vectors.html)** | Cosine similarity between two texts, the arithmetic spelled out, and the twelve dimensions that actually drive the score. |
+| **[A corpus, at once](corpus.html)** | Paste up to 40 sentences: an n×n similarity matrix, every item's nearest neighbours, and the same corpus projected from 384 dimensions to 2 with PCA. |
 
 ### Five things it will tell you that most explainers don't
 
@@ -78,6 +80,22 @@ award-winning sites the design is answering (Siena Film Foundation, Mat Voyce, L
 trend surveys) — with what was taken from each.
 
 ---
+
+## Why it is split into pages
+
+The first version was one long scroll. Everything was there, and the page was too much: six demos,
+six explanations and twelve megabytes of model fetching before you had decided whether you cared.
+
+So the guide is now six documents that behave like one:
+
+- **The landing page downloads nothing.** No worker, no vocabulary, no 23 MB embedder — it only
+  explains the four transformations and offers the chapters.
+- **Each chapter loads only what it demonstrates.** The tokenizer pages never touch the embedding
+  model; the vectors and corpus pages never load five tokenizers to render one sentence.
+- **Every chapter is one idea**, with the same three-part shape: what this is, what to try, and what
+  you are actually looking at.
+- **The chrome is identical everywhere** — same masthead, same chapter index, same colophon — and a
+  test fails if one page drifts.
 
 ## Run it locally
 
@@ -140,11 +158,17 @@ It's also the one thing in this repo with the most tests.
 ## Repository layout
 
 ```
-index.html               structure only — no inline CSS, no inline JS
+index.html               landing page: the hero, the diagram, the chapter list
+tokens.html              § 01  ┐
+tokenizers.html          § 02  │ one page per idea, each loading only the
+languages.html           § 03  │ model it needs
+vectors.html             § 04  │
+corpus.html              § 05  ┘
 styles/tokens.css        design tokens: colour, type, spacing, both themes
-styles/base.css          reset, page chrome, panels
+styles/base.css          reset, page chrome, chapters, panels
 styles/components.css    chips, meters, tables, matrix, canvas
-src/main.js              wiring: theme, nav, model lifecycle
+src/pages/*.js           one entry point per page (six files, ~15 lines each)
+src/lib/boot.js          shared chrome: theme, nav, motion, model client
 src/lib/model-worker.js  all inference, off the main thread
 src/lib/client.js        promise RPC + model state
 src/lib/tokens.js        token boundaries, whitespace, stats        ← tested
@@ -153,7 +177,7 @@ src/lib/pca.js           384d → 2d projection                        ← teste
 src/lib/chips.js         token chip rendering, roving tabindex
 src/lib/{dom,format,progress,store,theme,urlstate,models}.js
 src/demos/*.js           one module per panel
-tests/                   65 tests: unit, structure, DOM integration, design system
+tests/                   67 tests: unit, structure, DOM integration, design system
 scripts/make-og.py       regenerates assets/og.png
 ```
 
