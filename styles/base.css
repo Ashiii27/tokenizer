@@ -341,7 +341,9 @@ samp {
 .hero-title .line {
   display: block;
   overflow: hidden;
-  padding: 0 0 0.08em;
+  /* room for descenders and Fraunces' swashy terminals without moving the box */
+  padding: 0 0.08em 0.08em;
+  margin: 0 -0.08em;
 }
 
 .hero-title .word {
